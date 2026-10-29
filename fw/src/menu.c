@@ -4,7 +4,8 @@
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Audiobooks", "Sleep timer: ", "Theme: ", "Buttons", "Sort files: ",
+    "Files", "Now playing", "Audiobooks", "Sleep timer: ", "Theme: ", "Brightness: ", "Buttons",
+    "Sort files: ",
     "Tag text: ", "Date and time", "ReplayGain: ",
     "USB disk, read only", "USB disk, read/write", "Install a firmware (.IMG)", "System screen",
     "USB loader mode (exit: RST)", "About FROST",
@@ -30,6 +31,12 @@ int main_menu(void)
                     p = put_str(p, rg_names[rg_mode]);
                 if (i == M_THEME)
                     p = put_str(p, th->name);
+                if (i == M_BRIGHT) {            /* a bar of ten, and the level */
+                    for (int lv = 1; lv <= 10; lv++)
+                        p = put_str(p, lv <= lcd_level ? "\xe2\x96\xae" : "\xe2\x96\xaf");
+                    *p++ = ' ';
+                    p = put_dec(p, (uint32_t)lcd_level);
+                }
                 if (i == M_SLEEP) {
                     if (sleep_set == SLEEP_CHAPTER)
                         p = put_str(p, "end of chapter");
@@ -63,7 +70,12 @@ int main_menu(void)
             cpu_wait();
             continue;
         }
-        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SLEEP) {
+        if (k == KEY_PLAY && (ev == EV_PRESS || ev == EV_LONG) && sel == M_BRIGHT) {
+            int lv = lcd_level + (ev == EV_PRESS ? 1 : -1);  /* PLAY brighter (wraps), held dimmer */
+            lcd_set_level(lv > 10 ? 1 : lv < 1 ? 1 : lv);
+            resume_save();
+            dirty = 1;
+        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SLEEP) {
             sleep_cycle();
             dirty = 1;
         } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SORT) {
@@ -87,11 +99,8 @@ int main_menu(void)
             rg_apply();
             resume_save();
             dirty = 1;
-        } else if (k == KEY_VOLUP && ev != EV_LONG) {
-            list_move(&sel, &top, M_COUNT, ROWS, -1);
-            dirty = 1;
-        } else if (k == KEY_VOLDOWN && ev != EV_LONG) {
-            list_move(&sel, &top, M_COUNT, ROWS, 1);
+        } else if (key_list_dir(k) && ev != EV_LONG && ev != EV_CHORD) {
+            list_move(&sel, &top, M_COUNT, ROWS, key_list_dir(k));
             dirty = 1;
         } else if (k == KEY_BACK || (k == KEY_MENU && ev == EV_PRESS))
             return -1;
@@ -221,10 +230,8 @@ void buttons_screen(void)
             continue;
         }
         dirty = 1;
-        if (k == KEY_VOLUP && ev != EV_CHORD)
-            list_move(&sel, &top, S_COUNT, 8, -1);
-        else if (k == KEY_VOLDOWN && ev != EV_CHORD)
-            list_move(&sel, &top, S_COUNT, 8, 1);
+        if (key_list_dir(k) && ev != EV_CHORD)
+            list_move(&sel, &top, S_COUNT, 8, key_list_dir(k));
         else if (k == KEY_MENU && ev == EV_PRESS)
             scr = (scr + 1) % KM_SCREENS;
         else if (k == KEY_PLAY && (ev == EV_PRESS || ev == EV_LONG)) {
@@ -268,14 +275,14 @@ void splash(void)
     lcd_text_clip_x(104, 40, "FROST", LCD_W, TITLE_FG, BG, 3);
     lcd_text(108, 92, "custom firmware for ECHO MINI", DIM, BG);
     lcd_text(108, 110, "v" FW_VERSION ", on newfw " NEWFW_BASE, DIM, BG);
-    if (!logs.attached)                         /* no state can be kept without it */
+    if (!state_saved_anywhere())                /* no state can be kept without it */
         lcd_text(8, 136, "no NEWFWLOG.TXT: copy it to the root to resume", WARN, BG);
 }
 
 void about_screen(void)
 {
     splash();
-    if (!logs.attached)
+    if (!state_saved_anywhere())
         mdelay(1500);
     lcd_fill(0, 136, LCD_W, 16, BG);
     lcd_text(4, 136, "PLAY held, BACK held, VOL+ then VOL-:", FG, BG);
@@ -338,10 +345,8 @@ int books_screen(void)
             continue;
         }
         dirty = 1;
-        if (k == KEY_VOLUP && ev != EV_CHORD)
-            list_move(&sel, &top, n, 8, -1);
-        else if (k == KEY_VOLDOWN && ev != EV_CHORD)
-            list_move(&sel, &top, n, 8, 1);
+        if (key_list_dir(k) && ev != EV_CHORD)
+            list_move(&sel, &top, n, 8, key_list_dir(k));
         else if (k == KEY_PLAY && ev == EV_PRESS && n) {
             if (q_playing)
                 play_stop(STOP_NOW);
@@ -356,4 +361,17 @@ int books_screen(void)
         } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)
             return 0;
     }
+}
+
+/* FROST: the power-off screen, in the theme: a snowflake, "Power off", the place kept */
+void ui_power_splash(void)
+{
+    lcd_fill(0, 0, LCD_W, LCD_H, BG);
+    snowflake(160, 58, 30, ACCENT);
+    snowflake(160, 58, 12, TITLE_FG);
+    int w = lcd_text_width_x("Power off", 2);
+    lcd_text_clip_x((LCD_W - w) / 2, 98, "Power off", (LCD_W + w) / 2, FG, BG, 2);
+    const char *m = state_saved_anywhere() ? "your place is kept" : "no place to keep your state";
+    int w2 = lcd_text_width(m);
+    lcd_text((LCD_W - w2) / 2, 140, m, DIM, BG);
 }

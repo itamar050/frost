@@ -55,6 +55,22 @@ installer) and adds what is listed below.
 **Not supported:** WMA, DST-compressed DSD, and multichannel files. Formats a dedicated audio
 player doesn't use, such as video files and lossy 5.1, are not included either.
 
+### Screen and power
+- **Brightness** (Main menu → Brightness): 10 levels, from the stock firmware's backlight PWM at
+  10 kHz. PLAY makes it brighter (after 10 it wraps to 1); PLAY held makes it dimmer. It is
+  kept with the settings.
+- **Power off:** hold Power for 2 s. A "Power off" screen shows for one second while the state is
+  saved, then the player goes off: about 3 s in all. With the USB cable in, the charging screen
+  appears instead.
+- **Lists:** VOL- moves up and VOL+ moves down, in the browser and in every menu. Swap
+  `vol_up` and `vol_down` in Buttons (browser) to reverse it; the menus follow the browser.
+- **Format line:**
+  - The sample rate shows as written: 44.1, 22.05, 11.025 kHz.
+  - Lossless files show their bit depth.
+  - Lossy files (MP3, AAC, Vorbis, Opus, Musepack) show their average bitrate in kbps; the
+    "16 bit" newfw showed was only the decoder's output.
+  - DSD shows its own rate and what it is converted to ("DSD64 2.8 MHz → 88.2 kHz").
+
 ### Fun UI
 - **Six colour themes**: Classic, Snow (light), Neon, Cassette, Matrix and Sakura. Change them
   in Main menu → Theme; the change shows at once. The choice is kept when you power off.
@@ -62,7 +78,12 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   corners and the colours of the theme you picked.
   - **The label** carries the status line: play state, song number (e.g. 6/12), play mode, date
     and time, the jack in use, and the battery icon and percentage.
-  - **The window:** two reels turn while music plays. Their tape packs shrink on the left and
+  - **Anti-aliased drawing:** every edge is smoothed. The tape packs are shaded and banded,
+    the white hubs have six teeth that turn smoothly in 10° steps, the glass has a
+    reflection, the shell is lit from above, and the screws and bottom holes are rounded.
+  - **The window:** two reels turn while music plays. The tape winds from the left reel onto the
+    right one with its area kept, so the left reel empties down to its bare hub by the end of
+    the song while the right one fills. Their tape packs shrink on the left and
     grow on the right as the track goes on. Between the reels you see the title, artist, album
     (long lines scroll) and the time.
   - **Under the window:** the progress bar, the format and the volume.
@@ -84,10 +105,12 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   (5 s for an audiobook). If it was paused, PLAY continues from the exact point.
 - **Sudden power loss:** while playing, the place is also saved every 15 s, so at most a few
   seconds are lost if the battery is pulled.
-- **Needs `NEWFWLOG.TXT` in the root of the internal memory** (included in the package: a 1 MiB
-  file of spaces). The firmware can't create files, so it keeps its state inside this file.
-  Without it nothing can be remembered, and the boot screen says so. Copy it once over USB;
-  keep it in one piece by copying it onto a volume that isn't almost full.
+- **Where it's kept:** in a spare area at the end of the firmware's own space on the internal
+  memory, after the 2 MB image (on the 8 GB model that space is 27 MB per copy). No file is
+  needed, and the state survives firmware updates.
+  - If a player ever lacks that room, `NEWFWLOG.TXT` in the root is used instead (included in
+    the package), and the boot screen says when neither is available.
+  - An older state kept in `NEWFWLOG.TXT` is read once and carried over.
 
 ### Audiobooks
 - **What counts as a book:** any folder whose name, or the name of a folder above it, contains
@@ -201,7 +224,7 @@ Slot words: `play` `play_hold` `back` `back_hold` `menu` `menu_hold` `vol_up` `v
 | BACK held | home | play mode |
 | MENU | to the play screen | to the browser |
 | MENU held | main menu | main menu |
-| VOL+ / VOL- | up / down (faster when held) | volume |
+| VOL- / VOL+ | up / down (faster when held) | volume |
 | VOL+ then VOL- | quick jump | seek mode |
 
 ## Installing

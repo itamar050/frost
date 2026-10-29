@@ -189,6 +189,16 @@ static inline void pixel(uint16_t c)
     dat(c);
 }
 
+/* FROST: a rectangle of pixels from memory, rows top first */
+void lcd_blit(int x, int y, int w, int h, const uint16_t *px)
+{
+    if (w <= 0 || h <= 0)
+        return;
+    window(x, y, x + w - 1, y + h - 1);
+    for (int n = w * h; n; n--)
+        pixel(*px++);
+}
+
 void lcd_fill(int x, int y, int w, int h, uint16_t color)
 {
     if (w <= 0 || h <= 0)
@@ -442,11 +452,62 @@ int lcd_text(int x, int y, const char *s, uint16_t fg, uint16_t bg)
     return x;
 }
 
+/* FROST: brightness, levels 1 to 10. The stock firmware drives the backlight from PWM0
+ * channel 0 at 10 kHz (ETUDE §3.3): clock gate 0x90, reset 0x17, registers at 0x400f0000
+ * (CNT, PERIOD, DUTY, CTRL = 0x00010003), the pin GPIO2_4 in its function 1. The backlight's
+ * switch is active low: the light is on for PERIOD - DUTY (as found by ReChord and EchoPod).
+ * Level 10: the pin as a GPIO, high (newfw's full brightness, no PWM). */
+#define PWM0_BASE   0x400f0000u
+#define PWM_GATE    0x90
+#define PWM_RESET   0x17
+#define PWM_PERIOD  5000u                       /* PCLK 50 MHz / 10 kHz */
+int lcd_level = 10;
+static int bl_pwm, bl_on;
+static const uint8_t bl_pct[10] = { 6, 10, 15, 21, 28, 37, 48, 62, 80, 100 };
+
+static void pwm_off(void)
+{
+    if (!bl_pwm)
+        return;
+    REG(PWM0_BASE + 0xc) = 0;
+    clk_gate(PWM_GATE, 0);
+    bl_pwm = 0;
+}
+
 void lcd_backlight(int on)
 {
-    iomux(PIN_BACKLIGHT, 0);                    /* GPIO: full brightness, no PWM yet */
-    gpio_dir(PIN_BACKLIGHT, 1);
-    gpio_set(PIN_BACKLIGHT, on);
+    bl_on = on;
+    int lv = lcd_level < 1 ? 1 : lcd_level > 10 ? 10 : lcd_level;
+    if (!on || lv == 10) {
+        pwm_off();
+        iomux(PIN_BACKLIGHT, 0);                /* GPIO: off, or full brightness */
+        gpio_dir(PIN_BACKLIGHT, 1);
+        gpio_set(PIN_BACKLIGHT, on);
+        return;
+    }
+    if (!bl_pwm) {
+        clk_gate(PWM_GATE, 1);
+        soft_reset(PWM_RESET, 1);
+        udelay(5);
+        soft_reset(PWM_RESET, 0);
+        bl_pwm = 1;
+    }
+    uint32_t duty = PWM_PERIOD - PWM_PERIOD * bl_pct[lv - 1] / 100u;
+    REG(PWM0_BASE + 0xc) = 0;
+    REG(PWM0_BASE + 0x0) = 0;
+    REG(PWM0_BASE + 0x4) = PWM_PERIOD;
+    REG(PWM0_BASE + 0x8) = duty;
+    REG(PWM0_BASE + 0xc) = 0x00010003u;
+    gpio_dir(PIN_BACKLIGHT, 1);                 /* the pad high, then to the PWM */
+    gpio_set(PIN_BACKLIGHT, 1);
+    iomux(PIN_BACKLIGHT, 1);
+}
+
+void lcd_set_level(int level)
+{
+    lcd_level = level < 1 ? 1 : level > 10 ? 10 : level;
+    if (bl_on)
+        lcd_backlight(1);
 }
 
 /* Panel sleep (ST7789 DISPOFF + SLPIN, then SLPOUT + 120 ms + DISPON): the controller keeps its

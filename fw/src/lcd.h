@@ -13,6 +13,7 @@ extern int lcd_ready;
 
 void lcd_init(void);
 void lcd_fill(int x, int y, int w, int h, uint16_t color);
+void lcd_blit(int x, int y, int w, int h, const uint16_t *px);   /* FROST */
 int lcd_text(int x, int y, const char *s, uint16_t fg, uint16_t bg);
 /* UTF-8 */
 uint32_t utf8_next(const char **s);
@@ -25,6 +26,8 @@ void lcd_text_scroll(int x, int y, const char *s, int xmax, int off, int gap, ui
                      uint16_t bg);  /* s scrolled left by off pixels, then gap, then s again */
 int lcd_text_clip_x(int x, int y, const char *s, int xmax, uint16_t fg, uint16_t bg, int sc);
 void lcd_backlight(int on);
+extern int lcd_level;            /* FROST: brightness 1..10 */
+void lcd_set_level(int level);
 void lcd_sleep(int on);         /* panel asleep (backlight apart); waking takes 120 ms */
 void lcd_wake_fault(void);
 

@@ -188,7 +188,7 @@ extern int jack_out;                            /* FROST: 0 none, 1 3.5 mm, 2 4.
 int seek_key(const struct key_ev *e);
 
 /* ---- menu.c ---- */
-enum { M_FILES, M_PLAYING, M_BOOKS, M_SLEEP, M_THEME, M_BUTTONS, M_SORT, M_TAGCP, M_CLOCK, M_RG,
+enum { M_FILES, M_PLAYING, M_BOOKS, M_SLEEP, M_THEME, M_BRIGHT, M_BUTTONS, M_SORT, M_TAGCP, M_CLOCK, M_RG,
        M_USB_RO, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
 /* FROST: the sleep timer (ui.c): minutes, SLEEP_CHAPTER at the end of the chapter, 0 off */
 #define SLEEP_CHAPTER (-1)

@@ -115,6 +115,7 @@ static void storage_init(void)
     int r = emmc_sectors(&total);
     log_printf("emmc: %u sectors (%d); IDB copy %d: P %x R %x", total, r, emmc.idb_copy, emmc.p,
                emmc.r);
+    state_area_init();                          /* FROST: before the volume (and the log) */
     sys_volume_init();
 #ifdef SD_WALK
     sd_test();
@@ -264,9 +265,15 @@ void sys_idle(void)
         if (!sys_t_power)
             sys_t_power = now ? now : 1;
         else if (now - sys_t_power > 2000000) {
+            /* FROST: held 2 s: the power-off screen for a second (the state saved meanwhile),
+             * then off: about 3 s from the press */
             sys_screen_set(1);
-            sys_line(122, "power off", WARN);
-            sys_power_off("Power 2 s");
+            uint32_t t0 = ticks();
+            ui_power_splash();
+            ui_power_off();
+            while (ticks() - t0 < 1000000)
+                wdt_kick();
+            sys_power_off("Power held");
             charge_screen(0);                   /* still powered: the USB cable is in */
         }
     } else if (sys_t_power) {
@@ -283,7 +290,12 @@ void sys_power_off(const char *why)
     log_printf("power off (%s), battery %u mV", why, battery_mv());
     log_flush();
     mdelay(300);
+    lcd_fill(0, 0, LCD_W, LCD_H, 0);            /* (FROST) dark at once */
     power_off();
+    for (uint32_t t0 = ticks(); !vbus() && power_key() && ticks() - t0 < 10000000;)
+        wdt_kick();                             /* the key still holding the power: its release */
+    if (!vbus())
+        power_off();
     log_printf("power off: still powered (USB)");
 }
 

@@ -1,6 +1,7 @@
 /* Board support: pins, clocks, delays, keys, ADC, power. */
 #include <string.h>
 #include "board.h"
+#include "lcd.h"
 #include "regs.h"
 
 static const uint32_t gpio_base[3] = { GPIO0_BASE, GPIO1_BASE, GPIO2_BASE };
@@ -384,7 +385,7 @@ void reboot_loader_usb(void)
 
 void power_off(void)
 {
-    gpio_set(PIN_BACKLIGHT, 0);
+    lcd_backlight(0);                           /* (FROST: the PWM stopped too) */
     gpio_set(PIN_POWER_HOLD, 0);
     mdelay(500);
     /* still powered: the USB cable is in */

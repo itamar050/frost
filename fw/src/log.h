@@ -48,5 +48,7 @@ int log_state_write(const void *buf);
 #define LOG_BOOK_SECTORS 4
 int log_books_read(void *buf);
 int log_books_write(const void *buf);
+void state_area_init(void);     /* FROST: the state in FW1's copy when it has room */
+int state_saved_anywhere(void);  /* FROST: settings can be kept */
 
 #endif

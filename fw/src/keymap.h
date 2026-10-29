@@ -34,6 +34,7 @@ void keymap_fix(void);                  /* the main menu always reachable */
 int keymap_action(int screen, const struct key_ev *e, int *repeat);
 const char *action_name(int a);         /* on the screen */
 const char *slot_name(int s);
-int keymap_load_file(void);             /* KEYMAP.TXT: 1 applied, 0 none, < 0 error */
+int keymap_load_file(void);
+int key_list_dir(int key);              /* FROST: -1 up, 1 down (as the browser), 0 */             /* KEYMAP.TXT: 1 applied, 0 none, < 0 error */
 
 #endif

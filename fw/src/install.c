@@ -9,6 +9,7 @@
 #include "sys_priv.h"
 #include "ui.h"
 #include "update.h"
+#include "keymap.h"
 
 #define MAX_IMG 32
 #define IMG_ROWS 8                              /* rows of 16 px from y = 18, above the help line */
@@ -100,10 +101,8 @@ static void firmware_menu(void)
             wdt_kick();
         if (k == KEY_BACK)
             return;
-        if (k == KEY_VOLUP)                     /* the list wraps around */
-            list_move(&sel, &top, l.n, IMG_ROWS, -1);
-        if (k == KEY_VOLDOWN)
-            list_move(&sel, &top, l.n, IMG_ROWS, 1);
+        if (key_list_dir(k))                    /* the list wraps around (FROST: VOL keys */
+            list_move(&sel, &top, l.n, IMG_ROWS, key_list_dir(k));   /* as the browser's) */
         if (k != KEY_PLAY || !l.n)
             continue;
 

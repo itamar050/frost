@@ -252,7 +252,7 @@ void ui_main(void)
     uint32_t t_draw = 0, t_key = ticks(), t_save = millis(), key_ms = millis();
     uint32_t banner_ms = 0;                     /* a banner is shown (low battery, cannot play) */
     splash();                                   /* FROST: while the state is read */
-    if (!logs.attached)
+    if (!state_saved_anywhere())
         mdelay(2500);                           /* the warning on it read */
     jack_out = key_plug(SRC_JACK44) ? 2 : key_plug(SRC_JACK35) ? 1 : 0;
     depth = 0;

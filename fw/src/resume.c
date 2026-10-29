@@ -22,11 +22,12 @@ struct resume {
 #define XS_BOOK  2
 #define XS_TREE  3
 #define XS_QOK   4
+#define XS_BRIGHT 5                             /* brightness 1..10, 0: not saved */
 struct resume_x {
-    char magic[8];                              /* "FROSTX2" */
+    char magic[8];                              /* "FROSTX3" */
     uint32_t theme;
     uint8_t keymap[KM_SCREENS][S_COUNT];
-    uint8_t set[32 - KM_SCREENS * S_COUNT];     /* XS_*: settings, the queue's kind */
+    uint8_t set[40 - KM_SCREENS * S_COUNT];     /* XS_*: settings, the queue's kind */
     uint32_t sel[DEPTH_MAX], top[DEPTH_MAX];
     uint32_t q_cluster, q_size;                 /* the queue's folder (a tree: its top) */
     uint8_t q_vol, q_contig, pad[2];
@@ -77,12 +78,13 @@ void resume_save(void)
     r->sum = rs_sum(r);
     struct resume_x *x = (struct resume_x *)((uint8_t *)rs_buf + X_OFF);
     __builtin_memset(x, 0, sizeof *x);
-    __builtin_memcpy(x->magic, "FROSTX2", 8);
+    __builtin_memcpy(x->magic, "FROSTX3", 8);
     x->theme = (uint32_t)theme_index;
     x->set[XS_SORT] = (uint8_t)sort_by_tag;
     x->set[XS_CP] = (uint8_t)tag_cp;
     x->set[XS_BOOK] = (uint8_t)q_book;
     x->set[XS_TREE] = (uint8_t)q_tree;
+    x->set[XS_BRIGHT] = (uint8_t)lcd_level;
     if (qe) {                                   /* the queue, to build it again */
         x->set[XS_QOK] = 1;
         x->q_cluster = q_root.cluster;
@@ -138,12 +140,14 @@ void resume_load(void)
         keymap_load_file();
         return;
     }
-    int xok = !__builtin_memcmp(x->magic, "FROSTX2", 8) && x->sum == x_sum(x);
+    int xok = !__builtin_memcmp(x->magic, "FROSTX3", 8) && x->sum == x_sum(x);
     if (xok) {
         theme_set((int)x->theme);
         sort_by_tag = x->set[XS_SORT] & 1;
         if (x->set[XS_CP] < TAG_CP_COUNT)
             tag_cp = x->set[XS_CP];
+        if (x->set[XS_BRIGHT] >= 1 && x->set[XS_BRIGHT] <= 10)
+            lcd_set_level(x->set[XS_BRIGHT]);
         for (int m = 0; m < KM_SCREENS; m++)
             for (int k = 0; k < S_COUNT; k++)
                 keymap[m][k] = x->keymap[m][k];

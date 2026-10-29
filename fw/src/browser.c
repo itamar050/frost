@@ -747,9 +747,9 @@ static void jump_mode(void)
             continue;
         }
         t = millis();
-        if (e.key == KEY_VOLUP && ev != EV_CHORD)
+        if (key_list_dir(e.key) < 0 && ev != EV_CHORD)
             j = j ? j - 1 : jt_n - 1;
-        else if (e.key == KEY_VOLDOWN && ev != EV_CHORD)
+        else if (key_list_dir(e.key) > 0 && ev != EV_CHORD)
             j = j + 1 < jt_n ? j + 1 : 0;
         else if (e.key == KEY_BACK && ev == EV_PRESS) {
             b_dirty = 1;

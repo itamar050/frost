@@ -29,12 +29,11 @@ static const char *codec_name(uint32_t c)
 #define RY     64                               /* the reels' centre */
 #define RL     50
 #define RR     270
-#define RMIN   11
 #define RMAX   30
 #define TX0    86                               /* the text between the reels */
 #define TX1    234
 #define TZ_Y   131
-#define TAPE_Y (WN_Y1 - 2)                      /* the tape runs along the window's foot */                              /* the trapezoid */
+#define TAPE_Y (WN_Y1 - 2)                      /* the tape runs along the window's foot */
 
 /* ---- level meters, in the trapezoid ---- */
 #define VU_X0   (TX0 - 4)
@@ -258,58 +257,147 @@ static void status_line(void)
     text_right(x, xr, SL_Y, b, DIM, BG);
 }
 
-/* ---- the reels: the tape goes from the left one to the right one as the track goes on; they
- * turn while the music plays ---- */
-static int cs_angle, cs_r[2] = { -1, -1 }, cs_hub[2] = { -1, -1 };
+/* ---- the cassette, drawn with anti-aliased edges (FROST): every pixel of the reels, the
+ * screws, the holes and the slanted edges is computed (coverage of the shape blended with what
+ * is under it), then sent as a block. The tape is wound from the left reel onto the right one:
+ * the left pack empties down to its hub as the track goes on, the right one fills, their area
+ * kept (as on a real tape). ---- */
+#define HUB_R   11                              /* the white hub; the pack around it */
+#define HOLE_R  7
+#define REEL_T  (2 * RMAX + 4)                  /* a reel's tile */
+static int cs_angle, cs_r16[2] = { -1, -1 }, cs_hub[2] = { -1, -1 };
 static uint32_t cs_t;
+static uint16_t tile[REEL_T * REEL_T] __attribute__((section(".dirbuf")));
 
 static uint16_t tape_color(void)
 {
     return th->tape;
 }
 
-static void disc(int cx, int cy, int r, uint16_t c)
+/* RGB565: a toward b by k / 256 */
+static uint16_t mix(uint16_t a, uint16_t b, int k)
 {
-    for (int dy = -r; dy <= r; dy++) {
-        int dx = 0;
-        while ((dx + 1) * (dx + 1) + dy * dy <= r * r)
-            dx++;
-        lcd_fill(cx - dx, cy + dy, 2 * dx + 1, 1, c);
-    }
+    if (k <= 0)
+        return a;
+    if (k >= 256)
+        return b;
+    int ar = a >> 11, ag = a >> 5 & 63, ab = a & 31, br = b >> 11, bg = b >> 5 & 63, bb = b & 31;
+    return (uint16_t)((ar + ((br - ar) * k >> 8)) << 11 | (ag + ((bg - ag) * k >> 8)) << 5 |
+                      (ab + ((bb - ab) * k >> 8)));
 }
 
-/* The hub: a white wheel with six teeth inside, turning by steps of 30 degrees */
-static void hub(int cx, int cy, int a)
+static uint32_t isqrt(uint32_t v)
 {
-    static const int8_t nx[12] = { 6, 5, 3, 0, -3, -5, -6, -5, -3, 0, 3, 5 };
-    static const int8_t ny[12] = { 0, 3, 5, 6, 5, 3, 0, -3, -5, -6, -5, -3 };
-    disc(cx, cy, 9, FG);
-    disc(cx, cy, 4, BG);
-    for (int k = 0; k < 6; k++) {               /* six teeth, 60 degrees apart */
-        int i = (a + 2 * k) % 12;
-        lcd_fill(cx + nx[i] - 1, cy + ny[i] - 1, 3, 3, BG);
+    uint32_t r = 0, b = 1u << 30;
+    while (b > v)
+        b >>= 2;
+    while (b) {
+        if (v >= r + b) {
+            v -= r + b;
+            r = (r >> 1) + b;
+        } else
+            r >>= 1;
+        b >>= 2;
     }
-    lcd_fill(cx - 1, cy - 1, 3, 3, SEL_BG);
+    return r;
+}
+
+/* Coverage (0-256) of a disc of radius r16 (1/16 px) at distance d16 of its centre */
+static int cover(int r16, int d16)
+{
+    int c = (r16 + 8 - d16) * 16;
+    return c < 0 ? 0 : c > 256 ? 256 : c;
+}
+
+/* The glass of the window: its colour, a little lighter in a diagonal reflection */
+static uint16_t glass(int x, int y)
+{
+    int band = (x + (y >> 1)) % 56;
+    return band < 7 ? mix(BAR_BG, FG, 22) : band < 9 ? mix(BAR_BG, FG, 10) : BAR_BG;
+}
+
+/* sin, cos of 10-degree steps, Q12 */
+static const int16_t sn[36] = {
+    0, 711, 1401, 2048, 2633, 3138, 3547, 3849, 4034, 4096, 4034, 3849, 3547, 3138, 2633,
+    2048, 1401, 711, 0, -711, -1401, -2048, -2633, -3138, -3547, -3849, -4034, -4096, -4034,
+    -3849, -3547, -3138, -2633, -2048, -1401, -711,
+};
+#define CS(a) sn[((a) + 9) % 36]
+
+/* One pixel of a reel at (dx16, dy16) from its centre: glass g, the pack to r16, the hub */
+static uint16_t reel_px(int dx16, int dy16, uint16_t g, int r16, int ang)
+{
+    int d = (int)isqrt((uint32_t)(dx16 * dx16 + dy16 * dy16));
+    uint16_t c = g;
+    if (r16 > HUB_R * 16 && d < r16 + 16) {     /* the pack, in bands, lit from the top left */
+        uint16_t t = tape_color();
+        if ((d >> 4) % 3 == 0)
+            t = mix(t, 0, 40);
+        int lit = (-dx16 - dy16) * 24 / (r16 + 1);
+        t = lit > 0 ? mix(t, FG, lit) : mix(t, 0, -lit);
+        c = mix(c, t, cover(r16, d));
+    }
+    if (d < HUB_R * 16 + 16) {
+        uint16_t w = mix(FG, 0xffff, 120);
+        c = mix(c, w, cover(HUB_R * 16, d));                /* the white wheel */
+        if (d < HOLE_R * 16 + 16) {
+            c = mix(c, mix(BG, SEL_BG, 60), cover(HOLE_R * 16, d));   /* its hole */
+            for (int k = 0; k < 6; k++) {       /* six teeth into the hole, turning */
+                int a = (ang + 6 * k) % 36;
+                int u = (dx16 * CS(a) + dy16 * sn[a]) >> 12, v = (-dx16 * sn[a] + dy16 * CS(a)) >> 12;
+                if (u > 3 * 16 && u < HOLE_R * 16 + 8) {
+                    int cv = (22 - (v < 0 ? -v : v)) * 16;
+                    c = mix(c, w, cv < 0 ? 0 : cv);
+                }
+            }
+            c = mix(c, DIM, cover(16, d));      /* the spindle */
+        }
+    }
+    return c;
+}
+
+/* A rectangle of a reel (screen x, y, w, h), drawn from the model */
+static void reel_draw(int cx, int x, int y, int w, int h, int r16)
+{
+    uint16_t *p = tile;
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            *p++ = reel_px((x + i - cx) * 16, (y + j - RY) * 16, glass(x + i, y + j), r16, cs_angle);
+    lcd_blit(x, y, w, h, tile);
 }
 
 static void reels(int force)
 {
     uint32_t len = player_heard.length_ms, pos = now_ms();
-    int done = len ? (int)((uint64_t)(pos > len ? len : pos) * 64 / len) : 0;    /* of 64 */
-    int r[2] = { RMAX - (RMAX - RMIN) * done / 64, RMIN + (RMAX - RMIN) * done / 64 };
+    uint32_t done = len ? (uint32_t)((uint64_t)(pos > len ? len : pos) * 4096 / len) : 0;  /* of 4096 */
+    const uint32_t h2 = HUB_R * HUB_R * 256, m2 = RMAX * RMAX * 256;   /* in (1/16 px)^2 */
+    int r16[2] = { (int)isqrt(h2 + (uint32_t)((uint64_t)(m2 - h2) * (4096 - done) / 4096)),
+                   (int)isqrt(h2 + (uint32_t)((uint64_t)(m2 - h2) * done / 4096)) };
     const int cx[2] = { RL, RR };
     for (int i = 0; i < 2; i++) {
-        if (force || r[i] != cs_r[i]) {
-            /* the reel's corner of the window cleared, the pack, the tape from its side down
-             * to the run along the window's foot */
-            lcd_fill(cx[i] - RMAX - 1, RY - RMAX - 1, 2 * RMAX + 3, TAPE_Y - RY + RMAX + 1, BAR_BG);
-            disc(cx[i], RY, r[i], tape_color());
-            lcd_fill(cx[i] + (i ? -r[i] : r[i]), RY, 1, TAPE_Y - RY, tape_color());
-            cs_r[i] = r[i];
-            cs_hub[i] = -1;
+        if (force || (r16[i] >> 2) != (cs_r16[i] >> 2)) {      /* the pack: a quarter pixel */
+            int x0 = cx[i] - RMAX - 2;
+            reel_draw(cx[i], x0, RY - RMAX - 2, REEL_T, REEL_T, r16[i]);
+            /* below the tile, then the tape: down from the side of the pack, then along the
+             * window's foot to its guide */
+            int tx = cx[i] + (i ? -(r16[i] + 8) / 16 : (r16[i] + 8) / 16);
+            int gx = i ? RR - RMAX - 4 : RL + RMAX + 4;
+            uint16_t row[REEL_T + 8];
+            for (int y = RY + RMAX + 2; y <= TAPE_Y; y++) {
+                int xa = i ? gx + 3 : x0, xb = i ? x0 + REEL_T : gx - 3;   /* (the guide kept) */
+                for (int x = xa; x < xb; x++)
+                    row[x - xa] = glass(x, y);
+                lcd_blit(xa, y, xb - xa, 1, row);
+            }
+            for (int y = RY; y < TAPE_Y; y++)
+                if ((tx - cx[i]) * (tx - cx[i]) * 256 + (y - RY) * (y - RY) * 256 > r16[i] * r16[i])
+                    lcd_fill(tx, y, 1, 1, tape_color());
+            lcd_fill(i ? gx + 3 : tx, TAPE_Y, i ? tx - gx - 2 : gx - 3 - tx, 1, tape_color());
+            cs_r16[i] = r16[i];
+            cs_hub[i] = cs_angle;
         }
-        if (cs_hub[i] != cs_angle) {
-            hub(cx[i], RY, cs_angle);
+        if (cs_hub[i] != cs_angle) {            /* only the hub, turning */
+            reel_draw(cx[i], cx[i] - HUB_R - 1, RY - HUB_R - 1, 2 * HUB_R + 3, 2 * HUB_R + 3, r16[i]);
             cs_hub[i] = cs_angle;
         }
     }
@@ -317,11 +405,11 @@ static void reels(int force)
 
 static void cassette_tick(void)
 {
-    if (ticks() - cs_t < 90000)
+    if (ticks() - cs_t < 80000)
         return;
     cs_t = ticks();
     if (q_playing && !audio_paused)
-        cs_angle = (cs_angle + 11) % 12;        /* turning left, as a tape plays */
+        cs_angle = (cs_angle + 35) % 36;        /* 10 degrees a step, turning left */
     reels(0);
 }
 
@@ -332,43 +420,94 @@ void vu_tick(void)                              /* the reels and the meters */
 }
 
 /* ---- the shell, the label, the window, the bottom ---- */
+static void aa_disc(int cx, int cy, int r16, uint16_t c, uint16_t (*under)(int, int))
+{
+    int r = (r16 >> 4) + 2, w = 2 * r + 1;
+    uint16_t *p = tile;
+    for (int j = 0; j < w; j++)
+        for (int i = 0; i < w; i++) {
+            int dx = (i - r) * 16, dy = (j - r) * 16;
+            int d = (int)isqrt((uint32_t)(dx * dx + dy * dy));
+            *p++ = mix(under(cx - r + i, cy - r + j), c, cover(r16, d));
+        }
+    lcd_blit(cx - r, cy - r, w, w, tile);
+}
+
+static uint16_t shell_at(int x, int y)          /* the shell: lit from the top */
+{
+    (void)x;
+    return mix(SEL_BG, y < LCD_H / 2 ? FG : BG, y < LCD_H / 2 ? (LCD_H / 2 - y) / 3 : (y - LCD_H / 2) / 2);
+}
+
+static uint16_t tz_at(int x, int y)             /* in the trapezoid */
+{
+    (void)x;
+    (void)y;
+    return BG;
+}
+
 static void screw(int x, int y)
 {
-    disc(x, y, 3, DIM);
-    lcd_fill(x - 2, y, 5, 1, SEL_BG);
+    aa_disc(x, y, 3 * 16 + 8, mix(DIM, FG, 60), shell_at);
+    lcd_fill(x - 2, y, 5, 1, mix(DIM, BG, 120));             /* its slot */
+    lcd_fill(x, y - 2, 1, 5, mix(DIM, BG, 120));
 }
 
 static void cassette(void)
 {
-    uint16_t sh = SEL_BG;
-    lcd_fill(0, 0, LCD_W, LCD_H, sh);
-    lcd_fill(0, 0, 3, 3, BG);                   /* rounded corners: the screen's own black */
-    lcd_fill(LCD_W - 3, 0, 3, 3, BG);
-    lcd_fill(0, LCD_H - 3, 3, 3, BG);
-    lcd_fill(LCD_W - 3, LCD_H - 3, 3, 3, BG);
-    screw(4, 4);
-    screw(LCD_W - 5, 4);
-    screw(4, LCD_H - 5);
-    screw(LCD_W - 5, LCD_H - 5);
-    /* the label, with its two coloured stripes */
-    lcd_fill(LB_X0, LB_Y0, LB_X1 - LB_X0, LB_Y1 - LB_Y0, BG);
-    lcd_fill(LB_X0, LB_Y0, LB_X1 - LB_X0, 1, ACCENT);
-    lcd_fill(LB_X0 + 4, 24, LB_X1 - LB_X0 - 8, 2, ACCENT);
-    lcd_fill(LB_X0 + 4, 27, LB_X1 - LB_X0 - 8, 1, TITLE_FG);
-    /* the window: its frame, the glass behind the reels, the text between them */
-    lcd_fill(LB_X0 + 4, WN_Y0, LB_X1 - LB_X0 - 8, WN_Y1 - WN_Y0, DIM);
-    lcd_fill(LB_X0 + 5, WN_Y0 + 1, TX0 - LB_X0 - 7, WN_Y1 - WN_Y0 - 2, BAR_BG);
-    lcd_fill(TX1 + 2, WN_Y0 + 1, LB_X1 - TX1 - 7, WN_Y1 - WN_Y0 - 2, BAR_BG);
-    lcd_fill(TX0 - 2, WN_Y0 + 1, TX1 - TX0 + 4, WN_Y1 - WN_Y0 - 2, BG);
-    /* the bottom of the shell: a trapezoid with its two holes */
-    for (int y = TZ_Y; y < LCD_H; y++) {
-        int in = (y - TZ_Y) / 2;
-        lcd_fill(56 - in, y, LCD_W - 112 + 2 * in, 1, BG);
+    uint16_t row[LCD_W];
+    for (int y = 0; y < LCD_H; y++) {           /* the shell, shaded */
+        uint16_t c = shell_at(0, y);
+        lcd_fill(0, y, LCD_W, 1, c);
     }
-    disc(66, 160, 4, sh);
-    disc(LCD_W - 67, 160, 4, sh);
-    cs_r[0] = cs_r[1] = cs_hub[0] = cs_hub[1] = -1;
-    lcd_fill(RL, TAPE_Y, RR - RL + 1, 1, tape_color());   /* the tape past the heads */
+    lcd_fill(0, 0, LCD_W, 1, mix(SEL_BG, FG, 90));         /* its edge catching the light */
+    lcd_fill(0, 0, 2, 2, BG);                   /* rounded corners: the screen's own black */
+    lcd_fill(LCD_W - 2, 0, 2, 2, BG);
+    lcd_fill(0, LCD_H - 2, 2, 2, BG);
+    lcd_fill(LCD_W - 2, LCD_H - 2, 2, 2, BG);
+    screw(5, 5);
+    screw(LCD_W - 6, 5);
+    screw(5, LCD_H - 6);
+    screw(LCD_W - 6, LCD_H - 6);
+    /* the label: rounded, a side letter, two coloured stripes */
+    lcd_fill(LB_X0 + 2, LB_Y0, LB_X1 - LB_X0 - 4, LB_Y1 - LB_Y0, BG);
+    lcd_fill(LB_X0, LB_Y0 + 2, 2, LB_Y1 - LB_Y0 - 4, BG);
+    lcd_fill(LB_X1 - 2, LB_Y0 + 2, 2, LB_Y1 - LB_Y0 - 4, BG);
+    lcd_fill(LB_X0 + 1, LB_Y0 + 1, 1, 1, mix(SEL_BG, BG, 160));
+    lcd_fill(LB_X1 - 2, LB_Y0 + 1, 1, 1, mix(SEL_BG, BG, 160));
+    lcd_fill(LB_X0 + 1, LB_Y1 - 2, 1, 1, mix(SEL_BG, BG, 160));
+    lcd_fill(LB_X1 - 2, LB_Y1 - 2, 1, 1, mix(SEL_BG, BG, 160));
+    lcd_fill(LB_X0 + 4, 23, LB_X1 - LB_X0 - 8, 2, ACCENT);
+    lcd_fill(LB_X0 + 4, 25, LB_X1 - LB_X0 - 8, 1, mix(ACCENT, BG, 128));
+    lcd_fill(LB_X0 + 4, 27, LB_X1 - LB_X0 - 8, 1, TITLE_FG);
+    /* the window: a frame with a soft inner edge, the glass with its reflection */
+    lcd_fill(LB_X0 + 4, WN_Y0, LB_X1 - LB_X0 - 8, WN_Y1 - WN_Y0, mix(DIM, BG, 60));
+    lcd_fill(LB_X0 + 5, WN_Y0 + 1, LB_X1 - LB_X0 - 10, 1, mix(DIM, FG, 60));
+    for (int y = WN_Y0 + 1; y < WN_Y1 - 1; y++) {
+        int x0 = LB_X0 + 5, x1 = TX0 - 2, x2 = TX1 + 2, x3 = LB_X1 - 5;
+        for (int x = x0; x < x1; x++)
+            row[x - x0] = glass(x, y);
+        lcd_blit(x0, y, x1 - x0, 1, row);
+        for (int x = x2; x < x3; x++)
+            row[x - x2] = glass(x, y);
+        lcd_blit(x2, y, x3 - x2, 1, row);
+    }
+    lcd_fill(TX0 - 2, WN_Y0 + 1, TX1 - TX0 + 4, WN_Y1 - WN_Y0 - 2, BG);
+    /* the guides at the window's foot, the tape run between them */
+    aa_disc(RL + RMAX + 4, TAPE_Y, 2 * 16, DIM, glass);
+    aa_disc(RR - RMAX - 4, TAPE_Y, 2 * 16, DIM, glass);
+    lcd_fill(RL + RMAX + 4, TAPE_Y, RR - RL - 2 * RMAX - 8, 1, tape_color());
+    /* the bottom of the shell: a trapezoid, its slanted edges smoothed, two holes */
+    for (int y = TZ_Y; y < LCD_H; y++) {
+        int e16 = 56 * 16 - (y - TZ_Y) * 8;     /* the left edge, 1/16 px */
+        int xl = e16 >> 4, f = e16 & 15, xr = LCD_W - 1 - xl;
+        lcd_fill(xl + 1, y, xr - xl - 1, 1, BG);
+        lcd_fill(xl, y, 1, 1, mix(shell_at(xl, y), BG, 256 - f * 16));
+        lcd_fill(xr, y, 1, 1, mix(shell_at(xr, y), BG, 256 - f * 16));
+    }
+    aa_disc(66, 160, 4 * 16 + 8, mix(SEL_BG, BG, 90), tz_at);
+    aa_disc(LCD_W - 67, 160, 4 * 16 + 8, mix(SEL_BG, BG, 90), tz_at);
+    cs_r16[0] = cs_r16[1] = cs_hub[0] = cs_hub[1] = -1;
     reels(1);
     vu_reset();
 }
@@ -391,6 +530,59 @@ static void tape_bar(uint32_t pos, uint32_t len, int target)
             t = x0 + w - 2;
         lcd_fill(t - 1, BAR_Y - 2, 3, 9, SK_FG);
     }
+}
+
+/* FROST: a sample rate in kHz as it is written: 44.1, 22.05, 11.025, 48, 88.2 */
+static char *put_khz(char *p, uint32_t hz)
+{
+    p = put_dec(p, hz / 1000);
+    uint32_t f = hz % 1000;
+    if (f) {
+        *p++ = '.';
+        *p++ = (char)('0' + f / 100);
+        if (f % 100) {
+            *p++ = (char)('0' + f / 10 % 10);
+            if (f % 10)
+                *p++ = (char)('0' + f % 10);
+        }
+    }
+    return p;
+}
+
+/* The format line: lossless files their rate and bit depth; lossy ones (MP3, AAC, Vorbis,
+ * Opus, Musepack) their rate and mean bitrate (the decoder's 16 bits say nothing about them);
+ * DSD its own rate and what it is converted to */
+static void format_line(char *b)
+{
+    const struct entry *e = q_ent(q_cur);
+    uint32_t c = e ? e->flags & F_CODEC : 0, len = player_heard.length_ms;
+    uint32_t kbps = e && len > 1000 ? (uint32_t)((uint64_t)e->size * 8 / len) : 0;
+    char *p = b;
+    if (c == HP_CODEC_DSD) {
+        uint32_t per = kbps / (player.channels ? player.channels : 2);   /* kbit/s a channel */
+        uint32_t m = per > 8000 ? 256 : per > 4000 ? 128 : 64;
+        p = put_str(p, "DSD");
+        p = put_dec(p, m);
+        p = put_str(p, m == 64 ? " 2.8 MHz" : m == 128 ? " 5.6 MHz" : " 11.3 MHz");
+        p = put_str(p, " \xe2\x86\x92 ");
+        p = put_khz(p, player_heard.rate);
+        p = put_str(p, " kHz");
+    } else {
+        p = put_str(p, codec_name(c));
+        p = put_str(p, "  ");
+        p = put_khz(p, player_heard.rate);
+        p = put_str(p, " kHz  ");
+        int lossy = c == HP_CODEC_MP3 || c == HP_CODEC_AAC || c == HP_CODEC_VORBIS ||
+                    c == HP_CODEC_OPUS || c == HP_CODEC_MPC;
+        if (lossy && kbps) {
+            p = put_dec(p, kbps);
+            p = put_str(p, " kbps");
+        } else {
+            p = put_dec(p, player_heard.bps);
+            p = put_str(p, " bit");
+        }
+    }
+    *p = 0;
 }
 
 /* A book's third line: "chapter 3/12" (its files), or inside an .m4b its chapter, number and
@@ -448,18 +640,8 @@ void draw_playing(int full)
             book_line(1);
         } else
             marquee_set(&mq[2], TX0, TX1, 64, tg.album[0] ? tg.album : q_folder, DIR_FG);
-        /* the format, on the label under the tape */
-        p = put_str(b, codec_name(q_ent(q_cur) ? q_ent(q_cur)->flags & F_CODEC : 0));
-        p = put_str(p, "  ");
-        p = put_dec(p, player_heard.rate / 1000);
-        if (player_heard.rate % 1000) {
-            *p++ = '.';
-            p = put_dec(p, player_heard.rate % 1000 / 100);
-        }
-        p = put_str(p, " kHz  ");
-        p = put_dec(p, player_heard.bps);
-        p = put_str(p, " bit");
-        *p = 0;
+        /* the format, on the label under the tape (FROST: as the file is) */
+        format_line(b);
         lcd_text_clip(LB_X0 + 6, 110, b, 200, DIM, BG);
         /* the next track, in the bottom of the shell */
         int nx = q_next_index(q_cur, 0);

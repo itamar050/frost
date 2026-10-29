@@ -35,6 +35,12 @@ int emmc_read(uint32_t s, uint32_t n, void *buf)
     return 0;
 }
 
+/* FROST: the state in the firmware area: none here (emmc.p 0) */
+#define EMMC_FW1 0x2000u
+struct emmc_geom { uint32_t p, r; int idb_copy; };
+static struct emmc_geom emmc;
+int emmc_write_fw(uint32_t s, uint32_t n, const void *buf) { (void)s; (void)n; (void)buf; return -1; }
+
 #include "../src/log.c"
 
 int main(void)

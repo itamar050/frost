@@ -310,15 +310,49 @@ void log_detach(void)
 }
 
 /* ---- the resume state of the user interface: the last sector of the log file ---- */
+/* ---- FROST: the state also without NEWFWLOG.TXT ----
+ * The firmware area holds two copies of the image, FW1 and FW2 (R sectors each); our image fills
+ * the first fw_size bytes of each and the installer never writes past them. When the rest of
+ * FW1's copy has room, its last 5 sectors keep the state (the last one) and the bookmarks (the
+ * 4 before), through emmc_write_fw()'s fence: no file needed, kept across firmware updates.
+ * They are read first; when they hold nothing of ours yet, NEWFWLOG.TXT's (an older state). */
+static uint32_t fw_state;                       /* the state's sector in FW1's copy, 0: no room */
+
+void state_area_init(void)
+{
+    static uint32_t h[128];
+    fw_state = 0;
+    if (!emmc.p || emmc_read(EMMC_FW1, 1, h))
+        return;
+    const uint8_t *b = (const uint8_t *)h;
+    if (b[0x1f8] != 'R' || b[0x1f9] != 'K' || b[0x1fa] != 'n')
+        return;                                 /* "RKnanoFW": our image's header */
+    uint32_t fw_end = h[0x1f4 / 4];
+    uint32_t fw_size = ((fw_end + 0x104000u) & ~0xfffffu) / 512;    /* the installer's rule */
+    if (emmc.r >= fw_size + 64)
+        fw_state = EMMC_FW1 + emmc.r - 1;
+    log_printf("state: %s (image %u sectors, copy %u)", fw_state ? "firmware area" :
+               "NEWFWLOG.TXT only", fw_size, emmc.r);
+}
+
+int state_saved_anywhere(void)
+{
+    return fw_state || (logs.attached && state_sector);
+}
+
 int log_state_read(void *buf)
 {
+    if (fw_state && !emmc_read(fw_state, 1, buf) && !__builtin_memcmp(buf, "NEWFWSTATE", 10))
+        return 0;
     if (!logs.attached || !state_sector)
-        return -1;
+        return fw_state ? emmc_read(fw_state, 1, buf) : -1;
     return emmc_read(state_sector, 1, buf);
 }
 
 int log_state_write(const void *buf)
 {
+    if (fw_state && !emmc_write_fw(fw_state, 1, buf))
+        return 0;
     if (!logs.attached || !state_sector)
         return -1;
     return emmc_write_log(state_sector, 1, buf);
@@ -327,14 +361,20 @@ int log_state_write(const void *buf)
 /* FROST: the audiobook bookmarks, LOG_BOOK_SECTORS sectors before the resume state */
 int log_books_read(void *buf)
 {
+    uint32_t fb = fw_state - LOG_BOOK_SECTORS;
+    if (fw_state && !emmc_read(fb, LOG_BOOK_SECTORS, buf) && !__builtin_memcmp(buf, "FROSTBK1", 8))
+        return 0;
     if (!logs.attached || !book_sector)
-        return -1;
+        return fw_state ? emmc_read(fb, LOG_BOOK_SECTORS, buf) : -1;
     return emmc_read(book_sector, LOG_BOOK_SECTORS, buf);
 }
 
 int log_books_write(const void *buf)
 {
+    if (fw_state && !emmc_write_fw(fw_state - LOG_BOOK_SECTORS, LOG_BOOK_SECTORS, buf))
+        return 0;
     if (!logs.attached || !book_sector)
         return -1;
     return emmc_write_log(book_sector, LOG_BOOK_SECTORS, buf);
 }
+

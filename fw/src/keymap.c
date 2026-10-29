@@ -7,7 +7,8 @@
 uint8_t keymap[KM_SCREENS][S_COUNT];
 
 static const uint8_t defaults[KM_SCREENS][S_COUNT] = {
-    [KM_BROWSER] = { A_OPEN, A_PLAY_ALL, A_PARENT, A_HOME, A_SWITCH, A_MENU, A_UP, A_DOWN, A_JUMP },
+    /* FROST 1.0b: VOL- moves up the list, VOL+ down (the user's choice; the menus follow) */
+    [KM_BROWSER] = { A_OPEN, A_PLAY_ALL, A_PARENT, A_HOME, A_SWITCH, A_MENU, A_DOWN, A_UP, A_JUMP },
     [KM_PLAYING] = { A_PLAYPAUSE, A_NEXT, A_PREV, A_MODE, A_SWITCH, A_MENU, A_VOL_UP, A_VOL_DOWN,
                      A_SEEK },
     /* an audiobook: PLAY held 30 s on, BACK held 30 s back, BACK the chapter's start or the one
@@ -213,4 +214,15 @@ int keymap_load_file(void)
     keymap_fix();
     log_printf("keymap: KEYMAP.TXT applied (%u bytes)", len);
     return 1;
+}
+
+/* The direction a VOL key moves the lists (menus, editors) the same way as the browser's map:
+ * -1 up, 1 down, 0 not a VOL key */
+int key_list_dir(int key)
+{
+    if (key != KEY_VOLUP && key != KEY_VOLDOWN)
+        return 0;
+    int a = keymap[KM_BROWSER][S_VOLUP];
+    int up_is_down = a == A_DOWN || a == A_PAGE_DOWN;
+    return (key == KEY_VOLUP) == up_is_down ? 1 : -1;
 }
