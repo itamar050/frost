@@ -76,7 +76,7 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   - DSD shows its own rate and what it is converted to ("DSD64 2.8 MHz → 88.2 kHz").
 
 ### Fun UI
-- **Six colour themes**: Classic, Snow (light), Neon, Cassette, Matrix and Sakura. Change them
+- **Twelve colour themes**: Classic, Snow (light), Neon, Cassette, Matrix, Sakura, Elvis (black and gold, with rhinestones sparkling on the shell), Sega (90s blue, white and black), Terminator (red and black, a touch of chrome), Virtual Boy (red on black only), Turtles (sewer green with the four bandana colours) and Dark Mode (terminal greys). Change them
   in Main menu → Theme; the change shows at once. The choice is kept when you power off.
 - **The play screen is a cassette.** The whole screen is drawn as a tape, with screws in the
   corners and the colours of the theme you picked.

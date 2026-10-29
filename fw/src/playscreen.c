@@ -469,6 +469,20 @@ static void cassette(void)
     lcd_fill(LCD_W - 2, 0, 2, 2, BG);
     lcd_fill(0, LCD_H - 2, 2, 2, BG);
     lcd_fill(LCD_W - 2, LCD_H - 2, 2, 2, BG);
+    if (th->deco & THEME_SPARKLE) {             /* rhinestones on the shell */
+        static const uint16_t sp[][2] = {
+            { 14, 140 }, { 30, 154 }, { 46, 136 }, { 20, 164 }, { 40, 162 },
+            { 306, 140 }, { 290, 154 }, { 274, 136 }, { 300, 164 }, { 280, 162 },
+            { 3, 40 }, { 3, 80 }, { 3, 112 }, { 316, 40 }, { 316, 80 }, { 316, 112 },
+        };
+        for (unsigned k = 0; k < sizeof sp / sizeof *sp; k++) {
+            int x = sp[k][0], y = sp[k][1], big = k % 3 == 0;
+            uint16_t glint = mix(ACCENT, 0xffff, 160), halo = mix(shell_at(x, y), ACCENT, 140);
+            lcd_fill(x - 1 - big, y, 3 + 2 * big, 1, halo);
+            lcd_fill(x, y - 1 - big, 1, 3 + 2 * big, halo);
+            lcd_fill(x, y, 1, 1, glint);
+        }
+    }
     screw(5, 5);
     screw(LCD_W - 6, 5);
     screw(5, LCD_H - 6);

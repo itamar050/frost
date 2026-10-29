@@ -11,9 +11,11 @@ struct theme {
     uint16_t title_fg, dir_fg, bar_fg, bar_bg, sk_fg, rg_bg;
     uint16_t vu_lo, vu_mid, vu_hi;                      /* the level meters */
     uint16_t tape;                                      /* the cassette's tape */
+    uint16_t deco;                                      /* THEME_SPARKLE: rhinestones */
 };
+#define THEME_SPARKLE 1
 
-#define THEME_COUNT 6
+#define THEME_COUNT 12
 extern const struct theme themes[THEME_COUNT];
 extern const struct theme *th;
 extern int theme_index;
