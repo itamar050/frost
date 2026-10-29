@@ -190,8 +190,26 @@ static void status_line(void)
     }
     *p = 0;
     x = lcd_text(x, SL_Y, b, FG, BG);
-    if (play_mode)
+    if (q_book) {                               /* FROST: a book, in a badge */
+        int bw = lcd_text_width("BOOK") + 6;
+        lcd_fill(x, SL_Y + 2, bw, 12, TITLE_FG);
+        lcd_text_clip(x + 3, SL_Y, "BOOK", x + bw - 3, BG, TITLE_FG);
+        lcd_fill(x, SL_Y, bw, 2, BG);
+        lcd_fill(x, SL_Y + 14, bw, 2, BG);
+        x += bw + 4;
+    } else if (play_mode)
         x += lcd_glyph(x, SL_Y, mode_glyph[play_mode], ACCENT, BG);
+    if (sleep_set) {                            /* the sleep timer: a moon, the minutes left */
+        x += lcd_glyph(x, SL_Y, 0x263e, ACCENT, BG);
+        p = b;
+        if (sleep_set == SLEEP_CHAPTER)
+            p = put_str(p, "ch");
+        else
+            p = put_dec(p, sleep_left_min());
+        p = put_str(p, " ");
+        *p = 0;
+        x = lcd_text(x, SL_Y, b, DIM, BG);
+    }
     if (!bat_mv || ticks() - bat_t > 5000000) {
         bat_t = ticks();
         bat_mv = battery_mv();
@@ -375,6 +393,36 @@ static void tape_bar(uint32_t pos, uint32_t len, int target)
     }
 }
 
+/* A book's third line: "chapter 3/12" (its files), or inside an .m4b its chapter, number and
+ * title; drawn again when the chapter changes */
+static void book_line(int force)
+{
+    static char line[64];
+    static int shown = -2;
+    int c = chapter_at(tg.ch, now_ms());
+    if (!force && c == shown)
+        return;
+    shown = c;
+    char *p = line;
+    if (c >= 0) {
+        p = put_str(p, "ch ");
+        p = put_dec(p, (uint32_t)c + 1);
+        p = put_str(p, "/");
+        p = put_dec(p, tg.ch->n);
+        if (tg.ch->title[c][0]) {
+            p = put_str(p, " \xc2\xb7 ");
+            p = put_str(p, tg.ch->title[c]);
+        }
+    } else {
+        p = put_str(p, "chapter ");
+        p = put_dec(p, (uint32_t)q_cur + 1);
+        p = put_str(p, " of ");
+        p = put_dec(p, (uint32_t)q_n);
+    }
+    *p = 0;
+    marquee_set(&mq[2], TX0, TX1, 64, line, DIR_FG);
+}
+
 /* The play screen (FROST): everything framed in the cassette */
 void draw_playing(int full)
 {
@@ -396,7 +444,10 @@ void draw_playing(int full)
         const char *nm = tg.title[0] ? tg.title : q_name(q_cur);
         marquee_set(&mq[0], TX0, TX1, 32, nm, FG);
         marquee_set(&mq[1], TX0, TX1, 48, tg.artist[0] ? tg.artist : "unknown artist", TITLE_FG);
-        marquee_set(&mq[2], TX0, TX1, 64, tg.album[0] ? tg.album : q_folder, DIR_FG);
+        if (q_book) {
+            book_line(1);
+        } else
+            marquee_set(&mq[2], TX0, TX1, 64, tg.album[0] ? tg.album : q_folder, DIR_FG);
         /* the format, on the label under the tape */
         p = put_str(b, codec_name(q_ent(q_cur) ? q_ent(q_cur)->flags & F_CODEC : 0));
         p = put_str(p, "  ");
@@ -434,6 +485,8 @@ void draw_playing(int full)
         lcd_text_clip(200, 110, "PLAY go  BACK no", LB_X1 - 6, SK_FG, BG);
         return;
     }
+    if (q_book)
+        book_line(0);                           /* a new chapter inside the .m4b: said */
     p = fmt_time(b, now_ms());
     p = put_str(p, " / ");
     p = fmt_time(p, player_heard.length_ms);
@@ -463,9 +516,32 @@ void draw_playing(int full)
 /* An action on the play screen (keymap.h), or a playback action given on the browser: VOL+/VOL-
  * volume, PLAY pause / play, PLAY held next track (stop past the last), BACK start of the track
  * or the one before, BACK held the play mode (the defaults). Returns UI_*. */
+/* FROST: a chapter of the .m4b heard (book.h): from its start */
+static void chapter_go(uint32_t ms)
+{
+    if (parked) {
+        parked_ms = ms;
+        resume_save();
+        return;
+    }
+    player_seek_hint(ms ? ms : 1);
+    play_index(q_cur);
+}
+
 int play_action(int a, int repeat)
 {
     (void)repeat;
+    int ch = q_book ? chapter_at(tg.ch, now_ms()) : -1;     /* FROST: inside an .m4b */
+    if (ch >= 0 && (q_playing || parked) && (a == A_NEXT || a == A_PREV)) {
+        if (a == A_NEXT && ch + 1 < (int)tg.ch->n) {
+            chapter_go(tg.ch->ms[ch + 1]);
+            return UI_QUICK | UI_FULL;
+        }
+        if (a == A_PREV && (now_ms() - tg.ch->ms[ch] > 3000 || ch > 0)) {
+            chapter_go(now_ms() - tg.ch->ms[ch] > 3000 ? tg.ch->ms[ch] : tg.ch->ms[ch - 1]);
+            return UI_QUICK | UI_FULL;
+        }
+    }
     if (a == A_VOL_UP)
         volume(-2);
     else if (a == A_VOL_DOWN)
@@ -476,8 +552,8 @@ int play_action(int a, int repeat)
             resume_save();
         }
         else if (q_n) {
-            if (parked)
-                player_seek_hint(parked_ms);
+            if (parked)                         /* FROST: a book goes 5 s back after a pause */
+                player_seek_hint(q_book ? (parked_ms > 5000 ? parked_ms - 5000 : 1) : parked_ms);
             play_index(q_cur);
         }
     } else if (a == A_NEXT) {
@@ -499,7 +575,7 @@ int play_action(int a, int repeat)
             else
                 play_step(prev, -1);
         }
-    } else if (a == A_MODE || a == A_SHUFFLE) {
+    } else if ((a == A_MODE || a == A_SHUFFLE) && !q_book) {     /* a book stays in order */
         if (a == A_MODE)
             play_mode = (play_mode + 1) % MODE_COUNT;
         else
@@ -509,8 +585,9 @@ int play_action(int a, int repeat)
             q_shuffle_new();
         resume_save();
     } else if ((a == A_FWD || a == A_REW) && (q_playing || parked) && player_heard.length_ms) {
-        seek_begin();                           /* 10 s, at once */
-        seek_move(a == A_FWD ? 1 : -1, 0);
+        seek_begin();                           /* 10 s at once (a book: 30 s) */
+        for (int k = 0; k < (q_book ? book_skip_s / 10 : 1); k++)
+            seek_move(a == A_FWD ? 1 : -1, 0);
         seek_end(1);
         return UI_QUICK | UI_FULL;
     }

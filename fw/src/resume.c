@@ -14,16 +14,27 @@ struct resume {
     uint32_t playing, level, mode, pos_ms, sum;
 };
 /* FROST: more state in the same sector, from byte 256, with its own sum: the theme, the button
- * map, the selections in full (32 bits: big folders) */
+ * map, the settings, the selections in full (32 bits: big folders), and the play queue itself
+ * (its folder or tree, the track and its place), which the browser's folder no longer decides */
 #define X_OFF 256
+#define XS_SORT  0
+#define XS_CP    1
+#define XS_BOOK  2
+#define XS_TREE  3
+#define XS_QOK   4
 struct resume_x {
-    char magic[8];                              /* "FROSTX1" */
+    char magic[8];                              /* "FROSTX2" */
     uint32_t theme;
     uint8_t keymap[KM_SCREENS][S_COUNT];
-    uint8_t pad[20 - KM_SCREENS * S_COUNT];
+    uint8_t set[32 - KM_SCREENS * S_COUNT];     /* XS_*: settings, the queue's kind */
     uint32_t sel[DEPTH_MAX], top[DEPTH_MAX];
+    uint32_t q_cluster, q_size;                 /* the queue's folder (a tree: its top) */
+    uint8_t q_vol, q_contig, pad[2];
+    uint32_t q_cur, q_track;                    /* the track: its place, its first cluster */
+    char q_name[24];                            /* the folder's name (the album line) */
     uint32_t sum;
 };
+_Static_assert(X_OFF + sizeof(struct resume_x) <= 512, "resume state larger than a sector");
 static uint32_t rs_buf[128];
 static uint32_t rs_last_sum;
 
@@ -66,10 +77,22 @@ void resume_save(void)
     r->sum = rs_sum(r);
     struct resume_x *x = (struct resume_x *)((uint8_t *)rs_buf + X_OFF);
     __builtin_memset(x, 0, sizeof *x);
-    __builtin_memcpy(x->magic, "FROSTX1", 8);
+    __builtin_memcpy(x->magic, "FROSTX2", 8);
     x->theme = (uint32_t)theme_index;
-    x->pad[0] = (uint8_t)(sort_by_tag | 0x80);  /* FROST settings (0x80: written) */
-    x->pad[1] = (uint8_t)(tag_cp | 0x80);
+    x->set[XS_SORT] = (uint8_t)sort_by_tag;
+    x->set[XS_CP] = (uint8_t)tag_cp;
+    x->set[XS_BOOK] = (uint8_t)q_book;
+    x->set[XS_TREE] = (uint8_t)q_tree;
+    if (qe) {                                   /* the queue, to build it again */
+        x->set[XS_QOK] = 1;
+        x->q_cluster = q_root.cluster;
+        x->q_size = q_root.size;
+        x->q_vol = q_root.vol;
+        x->q_contig = q_root.contig;
+        x->q_cur = (uint32_t)q_cur;
+        x->q_track = qe->cluster;
+        copy_name(x->q_name, q_folder, sizeof x->q_name);
+    }
     for (int m = 0; m < KM_SCREENS; m++)
         for (int k = 0; k < S_COUNT; k++)
             x->keymap[m][k] = keymap[m][k];
@@ -78,6 +101,7 @@ void resume_save(void)
         x->top[i] = (uint32_t)path[i].top;
     }
     x->sum = x_sum(x);
+    book_note();                                /* an audiobook: its bookmark too */
     if ((r->sum ^ x->sum) == rs_last_sum)
         return;                                 /* nothing changed: no write */
     rs_last_sum = r->sum ^ x->sum;
@@ -109,17 +133,17 @@ void resume_load(void)
     struct resume *r = (struct resume *)rs_buf;
     struct resume_x *x = (struct resume_x *)((uint8_t *)rs_buf + X_OFF);
     keymap_defaults();
+    books_load();
     if (log_state_read(rs_buf)) {
         keymap_load_file();
         return;
     }
-    int xok = !__builtin_memcmp(x->magic, "FROSTX1", 8) && x->sum == x_sum(x);
+    int xok = !__builtin_memcmp(x->magic, "FROSTX2", 8) && x->sum == x_sum(x);
     if (xok) {
         theme_set((int)x->theme);
-        if (x->pad[0] & 0x80)
-            sort_by_tag = x->pad[0] & 1;
-        if ((x->pad[1] & 0x80) && (x->pad[1] & 0x7f) < TAG_CP_COUNT)
-            tag_cp = x->pad[1] & 0x7f;
+        sort_by_tag = x->set[XS_SORT] & 1;
+        if (x->set[XS_CP] < TAG_CP_COUNT)
+            tag_cp = x->set[XS_CP];
         for (int m = 0; m < KM_SCREENS; m++)
             for (int k = 0; k < S_COUNT; k++)
                 keymap[m][k] = x->keymap[m][k];
@@ -152,7 +176,7 @@ void resume_load(void)
         if (path[0].sel >= dir_n)
             path[0].sel = 0;
         log_printf("ui: resume: top level (%d saved)", saved);
-        return;
+        goto queue;
     }
     path_root(v);
     path[1].sel = SEL(1 - old);
@@ -175,22 +199,62 @@ void resume_load(void)
     log_printf("ui: resume: %s, depth %d (%d saved), track %x at %u ms, playing %u, -%u dB",
                v == FAT_VOL_SD ? "card" : "internal", depth, saved, r->track, r->pos_ms,
                r->playing, (uint32_t)play_level / 2);
-    if (!r->track || depth != saved)
+queue:
+    if (!r->track)
         return;
-    list_index(&dir_l, (uint32_t)path[depth].sel);     /* a big folder: the window there */
-    for (int i = (int)dir_l.base; i < (int)dir_l.base + dir_l.n; i++)
-        if (!(ent(i)->flags & F_DIR) && ent(i)->cluster == r->track) {
-            path[depth].sel = i;
-            if (path[depth].sel < path[depth].top || path[depth].sel >= path[depth].top + ROWS)
-                path[depth].top = i > ROWS / 2 ? i - ROWS / 2 : 0;
-            q_from_dir(i);
-            if (r->playing) {                   /* where it was, two seconds before */
-                player_seek_hint(r->pos_ms > 2000 ? r->pos_ms - 2000 : 0);
-                play_index(q_cur);
-            } else if (r->pos_ms) {             /* paused: PLAY goes on from there */
-                parked = 1;
-                parked_ms = r->pos_ms;
-            }
+    uint32_t back = 2000;                       /* where it was, a little before */
+    if (xok && x->set[XS_QOK] && x->q_track == r->track) {
+        /* FROST: the queue built again from its own folder (or tree), wherever the browser is */
+        struct fat_dir d = { x->q_cluster, x->q_size, x->q_vol, x->q_contig };
+        char nm[24];
+        copy_name(nm, x->q_name, sizeof nm);
+        if (d.vol == FAT_VOL_SD && sd_open())
+            return;
+        if (x->set[XS_TREE]) {
+            q_from_tree(&d, nm);
+            const struct entry *e = (int)x->q_cur < q_n ? q_ent((int)x->q_cur) : 0;
+            if (e && e->cluster == r->track)
+                q_cur = (int)x->q_cur;
+            else                                /* the tree changed: the track looked for */
+                for (int i = 0; i < q_n && i < 5000; i++)
+                    if (q_ent(i) && q_ent(i)->cluster == r->track) {
+                        q_cur = i;
+                        break;
+                    }
+        } else
+            q_from_folder(&d, nm, r->track);
+        if (!q_n || !q_ent(q_cur) || q_ent(q_cur)->cluster != r->track) {
+            log_printf("ui: resume: the track is gone");
+            q_clear();
             return;
         }
+        if (x->set[XS_BOOK]) {
+            book_set(1);
+            play_mode = MODE_ORDER;
+            back = 5000;                        /* a book: 5 s back */
+        }
+        log_printf("ui: resume: queue %s, track %d of %d", nm, q_cur + 1, q_n);
+    } else {
+        if (depth != saved)
+            return;
+        list_index(&dir_l, (uint32_t)path[depth].sel);     /* a big folder: the window there */
+        int found = 0;
+        for (int i = (int)dir_l.base; i < (int)dir_l.base + dir_l.n && !found; i++)
+            if (!(ent(i)->flags & F_DIR) && ent(i)->cluster == r->track) {
+                path[depth].sel = i;
+                if (path[depth].sel < path[depth].top || path[depth].sel >= path[depth].top + ROWS)
+                    path[depth].top = i > ROWS / 2 ? i - ROWS / 2 : 0;
+                q_from_dir(i);
+                found = 1;
+            }
+        if (!found)
+            return;
+    }
+    if (r->playing) {                           /* playing: on again, from a little before */
+        player_seek_hint(r->pos_ms > back ? r->pos_ms - back : 0);
+        play_index(q_cur);
+    } else if (r->pos_ms) {                     /* paused: PLAY goes on from there */
+        parked = 1;
+        parked_ms = r->pos_ms;
+    }
 }

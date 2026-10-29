@@ -11,6 +11,7 @@
 #include "fat.h"
 #include "hifi_proto.h"
 #include "tags.h"
+#include "book.h"
 #include "text.h"
 
 #define SCAN_MAX (512 * 1024)                   /* never look further into a file (past the */
@@ -650,11 +651,44 @@ static int mp4_find(uint32_t from, uint32_t end, const char *type, uint32_t *bod
     return -1;
 }
 
+/* FROST: the chapters of an .m4b, Nero's "chpl" box in moov/udta: version 1, flags, 4 bytes,
+ * a count, then each chapter: start (u64, 100 ns units), title length (u8), title */
+static void mp4_chpl(struct tags *t, uint32_t b, uint32_t e)
+{
+    const uint8_t *p;
+    struct chapters *c = t->ch;
+    if (!c || rd_at(b, 9, &p))
+        return;
+    uint32_t pos = b + (p[0] ? 8 : 4), n;
+    if (rd_at(pos, 1, &p))
+        return;
+    n = p[0];
+    pos++;
+    for (uint32_t i = 0; i < n && c->n < CH_MAX && pos + 9 <= e; i++) {
+        if (rd_at(pos, 9, &p))
+            return;
+        uint64_t st = (uint64_t)be32(p) << 32 | be32(p + 4);
+        uint32_t len = p[8];
+        pos += 9;
+        if (pos + len > e)
+            return;
+        c->ms[c->n] = (uint32_t)(st / 10000);
+        c->title[c->n][0] = 0;
+        if (len && !rd_at(pos, len, &p))
+            set_text(c->title[c->n], CH_TITLE, p, len, 3);
+        c->n++;
+        pos += len;
+    }
+}
+
 static void mp4(struct tags *t)
 {
-    uint32_t b, e, end = rd.f->size;
-    if (mp4_find(0, end, "moov", &b, &e) || mp4_find(b, e, "udta", &b, &e) ||
-        mp4_find(b, e, "meta", &b, &e) || mp4_find(b + 4, e, "ilst", &b, &e))
+    uint32_t b, e, end = rd.f->size, cb, ce;
+    if (mp4_find(0, end, "moov", &b, &e) || mp4_find(b, e, "udta", &b, &e))
+        return;
+    if (!mp4_find(b, e, "chpl", &cb, &ce))
+        mp4_chpl(t, cb, ce);
+    if (mp4_find(b, e, "meta", &b, &e) || mp4_find(b + 4, e, "ilst", &b, &e))
         return;
     const uint8_t *id, *p;
     for (uint32_t pos = b, ib, next; !mp4_box(pos, e, &id, &ib, &next); pos = next) {
@@ -748,6 +782,8 @@ void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
 {
     t->title[0] = t->artist[0] = t->album[0] = 0;
     t->track = t->disc = 0;
+    if (t->ch)
+        t->ch->n = 0;
     t->rg_gain[0] = t->rg_gain[1] = RG_NONE;
     t->rg_peak[0] = t->rg_peak[1] = 0;
     t->ogg_end_page = t->ogg_end_seg = 0;
@@ -794,7 +830,7 @@ void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
 /* FROST: the order of a file by its tags (the browser's "Sort files: by track") */
 uint16_t tags_order(const struct fat_file *f, uint32_t codec)
 {
-    static struct tags kt;
+    static struct tags kt;                      /* (kt.ch stays 0: no chapters) */
     tags_read(f, codec, &kt);
     if (!kt.track || kt.track > 999)
         return TAGS_NO_ORDER;

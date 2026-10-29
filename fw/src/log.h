@@ -44,5 +44,9 @@ void log_poll(void);            /* writes them when enough time or text has gone
  * user interface (512 bytes, starting with "NEWFWSTATE", ui.c) */
 int log_state_read(void *buf);
 int log_state_write(const void *buf);
+/* FROST: the 4 sectors before it keep the audiobook bookmarks (book.c) */
+#define LOG_BOOK_SECTORS 4
+int log_books_read(void *buf);
+int log_books_write(const void *buf);
 
 #endif

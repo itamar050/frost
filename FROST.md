@@ -75,6 +75,54 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
 - An "up next" line, a coloured dot for each file showing its format, an accent bar on the
   selected row, and a boot splash.
 
+### Resume where you stopped
+- **What is kept at power off:** the track and the exact place in it, the whole play queue
+  (one folder, or everything under a folder), volume, play mode, theme and settings. This
+  applies however the player goes off: Power held, auto-off, or a flat battery.
+- **What happens at power on:** the same queue is rebuilt from its own folder, even if you were
+  browsing somewhere else, and the play screen opens. Music starts 2 s before where it stopped
+  (5 s for an audiobook). If it was paused, PLAY continues from the exact point.
+- **Sudden power loss:** while playing, the place is also saved every 15 s, so at most a few
+  seconds are lost if the battery is pulled.
+- **Needs `NEWFWLOG.TXT` in the root of the internal memory** (included in the package: a 1 MiB
+  file of spaces). The firmware can't create files, so it keeps its state inside this file.
+  Without it nothing can be remembered, and the boot screen says so. Copy it once over USB;
+  keep it in one piece by copying it onto a volume that isn't almost full.
+
+### Audiobooks
+- **What counts as a book:** any folder whose name, or the name of a folder above it, contains
+  "audiobook", "book", "podcast", "ספרי שמע", "ספר שמע", "ספרים" or "פודקאסט". Any .m4b file
+  is also a book. Simplest: put your books in a folder called **Audiobooks**, one folder per
+  book.
+- **Bookmark per book:** up to 31 books each remember their chapter and the place in it.
+  - Opening the book folder puts the cursor on that chapter.
+  - Playing it, or PLAY held on the folder, continues 5 s before the bookmark.
+  - Main menu → **Audiobooks** lists them, most recent first, with chapter and time. PLAY
+    continues one; BACK held forgets it.
+- **Chapters:** the files of the book. Inside an .m4b, its own chapters with their titles from
+  the "chpl" chapter list (shown as "ch 2/12 · Title").
+- **The play screen of a book** has a BOOK badge and the chapter line, plays in order (no
+  shuffle or repeat), and has its own keys (Main menu → Buttons → audiobook, or `[audiobook]`
+  in KEYMAP.TXT):
+
+  | Key | Audiobook |
+  |---|---|
+  | PLAY | play / pause (5 s back after a pause over a minute) |
+  | PLAY held | forward 30 s |
+  | BACK | start of the chapter, or the one before |
+  | BACK held | back 30 s |
+  | VOL+ then VOL- | next chapter |
+  | VOL+ / VOL- | volume |
+
+- **Sleep timer** (Main menu → Sleep timer): 15, 30, 45, 60 or 90 min, or **end of chapter**.
+  The music pauses (end of chapter: stopped at the start of the next one) and the screen goes
+  off. A moon and the minutes left show in the status line.
+- **Not supported:** speed control. That would need a time-stretch on the audio core, which is
+  a big job.
+- **Not supported:** Audible files (.aa/.aax), which are DRM-protected.
+- **Not supported:** chapters stored only as a QuickTime chapter track. Most tools also write
+  the "chpl" list.
+
 ### Tags and order
 - **Tags read:** title, artist, album, track and disc number, and ReplayGain.
   - MP3: ID3v2.2–2.4, falling back to ID3v1.

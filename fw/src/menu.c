@@ -4,8 +4,8 @@
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Theme: ", "Buttons", "Sort files: ", "Tag text: ", "Date and time",
-    "ReplayGain: ",
+    "Files", "Now playing", "Audiobooks", "Sleep timer: ", "Theme: ", "Buttons", "Sort files: ",
+    "Tag text: ", "Date and time", "ReplayGain: ",
     "USB disk, read only", "USB disk, read/write", "Install a firmware (.IMG)", "System screen",
     "USB loader mode (exit: RST)", "About FROST",
 };
@@ -30,6 +30,20 @@ int main_menu(void)
                     p = put_str(p, rg_names[rg_mode]);
                 if (i == M_THEME)
                     p = put_str(p, th->name);
+                if (i == M_SLEEP) {
+                    if (sleep_set == SLEEP_CHAPTER)
+                        p = put_str(p, "end of chapter");
+                    else if (sleep_set) {
+                        p = put_dec(p, sleep_left_min());
+                        p = put_str(p, " min left");
+                    } else
+                        p = put_str(p, "off");
+                }
+                if (i == M_BOOKS) {
+                    p = put_str(p, " (");
+                    p = put_dec(p, (uint32_t)book_count());
+                    p = put_str(p, ")");
+                }
                 if (i == M_SORT)
                     p = put_str(p, sort_by_tag ? "by track number" : "by name");
                 if (i == M_TAGCP)
@@ -49,7 +63,10 @@ int main_menu(void)
             cpu_wait();
             continue;
         }
-        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SORT) {
+        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SLEEP) {
+            sleep_cycle();
+            dirty = 1;
+        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SORT) {
             sort_by_tag = !sort_by_tag;         /* the folder shown, and the queue's, again */
             dir_load(&path[depth].dir);
             if (path[depth].sel >= dir_n)
@@ -179,8 +196,8 @@ void buttons_screen(void)
     for (;;) {
         if (dirty) {
             lcd_fill(0, 0, LCD_W, LCD_H, BG);
-            lcd_text(4, 0, scr == KM_BROWSER ? "Buttons: browser" : "Buttons: play screen",
-                     TITLE_FG, BG);
+            lcd_text(4, 0, scr == KM_BROWSER ? "Buttons: browser" : scr == KM_PLAYING ?
+                     "Buttons: play screen" : "Buttons: audiobook", TITLE_FG, BG);
             text_right(LCD_W - 120, LCD_W - 4, 0, "MENU: other", DIM, BG);
             for (int i = top; i < S_COUNT && i < top + 8; i++) {
                 int y = ROW_Y0 + 16 * (i - top);
@@ -209,7 +226,7 @@ void buttons_screen(void)
         else if (k == KEY_VOLDOWN && ev != EV_CHORD)
             list_move(&sel, &top, S_COUNT, 8, 1);
         else if (k == KEY_MENU && ev == EV_PRESS)
-            scr = scr == KM_BROWSER ? KM_PLAYING : KM_BROWSER;
+            scr = (scr + 1) % KM_SCREENS;
         else if (k == KEY_PLAY && (ev == EV_PRESS || ev == EV_LONG)) {
             int a = keymap[scr][sel] + (ev == EV_PRESS ? 1 : -1);
             keymap[scr][sel] = (uint8_t)(a < 0 ? A_COUNT - 1 : a >= A_COUNT ? 0 : a);
@@ -251,11 +268,16 @@ void splash(void)
     lcd_text_clip_x(104, 40, "FROST", LCD_W, TITLE_FG, BG, 3);
     lcd_text(108, 92, "custom firmware for ECHO MINI", DIM, BG);
     lcd_text(108, 110, "v" FW_VERSION ", on newfw " NEWFW_BASE, DIM, BG);
+    if (!logs.attached)                         /* no state can be kept without it */
+        lcd_text(8, 136, "no NEWFWLOG.TXT: copy it to the root to resume", WARN, BG);
 }
 
 void about_screen(void)
 {
     splash();
+    if (!logs.attached)
+        mdelay(1500);
+    lcd_fill(0, 136, LCD_W, 16, BG);
     lcd_text(4, 136, "PLAY held, BACK held, VOL+ then VOL-:", FG, BG);
     lcd_text(4, 152, "see Buttons. Any key: back", DIM, BG);
     for (;;) {
@@ -265,5 +287,73 @@ void about_screen(void)
         if (key_poll(&e) == EV_PRESS)
             return;
         cpu_wait();
+    }
+}
+
+/* ---- FROST: the audiobooks, the most recent first: PLAY goes back into one, BACK held
+ * forgets it, BACK leaves. Returns 1 when a book plays. ---- */
+int books_screen(void)
+{
+    int sel = 0, top = 0, dirty = 1;
+    for (;;) {
+        int n = book_count();
+        if (sel >= n)
+            sel = n ? n - 1 : 0;
+        if (dirty) {
+            lcd_fill(0, 0, LCD_W, LCD_H, BG);
+            lcd_text(4, 0, "Audiobooks", TITLE_FG, BG);
+            if (!n) {
+                lcd_text(8, 40, "no audiobook yet", DIM, BG);
+                lcd_text(8, 64, "Books are folders named like", DIM, BG);
+                lcd_text(8, 80, "Audiobooks, Books, Podcasts,", DIM, BG);
+                lcd_text(8, 96, "\xd7\xa1\xd7\xa4\xd7\xa8\xd7\x99 \xd7\xa9\xd7\x9e\xd7\xa2, or .m4b files", DIM, BG);
+            }
+            for (int i = top; i < n && i < top + 8; i++) {
+                const struct book *b = book_nth(i);
+                int y = ROW_Y0 + 16 * (i - top);
+                uint16_t bg = i == sel ? SEL_BG : BG;
+                lcd_fill(0, y, LCD_W, 16, bg);
+                if (i == sel)
+                    lcd_fill(0, y, 3, 16, ACCENT);
+                char r[32], *p = put_str(r, "ch ");
+                p = put_dec(p, b->track + 1);
+                p = put_str(p, "/");
+                p = put_dec(p, b->tracks);
+                p = put_str(p, " ");
+                p = fmt_time(p, b->pos_ms);
+                *p = 0;
+                int rw = lcd_text_width(r);
+                lcd_text_clip(8, y, b->name, LCD_W - rw - 12, FG, bg);
+                lcd_text(LCD_W - rw - 4, y, r, DIM, bg);
+            }
+            lcd_text(4, 154, "PLAY: continue  BACK held: forget", DIM, BG);
+            dirty = 0;
+        }
+        sys_idle();
+        ui_background();
+        struct key_ev e;
+        int ev = key_poll(&e), k = e.key;
+        if (ev == EV_NONE) {
+            cpu_wait();
+            continue;
+        }
+        dirty = 1;
+        if (k == KEY_VOLUP && ev != EV_CHORD)
+            list_move(&sel, &top, n, 8, -1);
+        else if (k == KEY_VOLDOWN && ev != EV_CHORD)
+            list_move(&sel, &top, n, 8, 1);
+        else if (k == KEY_PLAY && ev == EV_PRESS && n) {
+            if (q_playing)
+                play_stop(STOP_NOW);
+            parked = 0;
+            if (!book_play(book_nth(sel)))
+                return 1;
+            lcd_fill(0, 60, LCD_W, 30, SEL_BG);
+            lcd_text(40, 66, "the book is not there any more", FG, SEL_BG);
+            mdelay(1200);
+        } else if (k == KEY_BACK && ev == EV_LONG && n) {
+            book_forget(book_nth(sel));
+        } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)
+            return 0;
     }
 }

@@ -22,7 +22,8 @@ def main():
     n = len(d) // 512
     sec = [d[512 * i:512 * (i + 1)] for i in range(n)]
     order = (list(range(nxt + 1, n)) if wraps else []) + list(range(1, nxt + 1))
-    order = [i for i in order if not sec[i].startswith(b"NEWFWSTATE")]  # the resume state
+    # the resume state (last sector) and FROST's audiobook bookmarks (the 4 before it)
+    order = [i for i in order if i < n - 5 and not sec[i].startswith(b"NEWFWSTATE")]
     text = b"".join(sec[i][:fill] if i == nxt else sec[i] for i in order)
     lines = [ln.rstrip(b" ") for ln in text.split(b"\n")]
     out = b"\n".join(ln for ln in lines if ln.strip())

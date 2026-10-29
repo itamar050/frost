@@ -7,6 +7,20 @@
 int play_level = 80;                            /* PCM_VOL: attenuation / 2 dB, start at -40 dB */
 struct tags tg;                                 /* of the track heard */
 static struct tags tg_next;                     /* of the one opened last */
+/* FROST: the chapters of both, swapped with them */
+static struct chapters chap[2] __attribute__((section(".dirbuf")));
+
+/* The tags of the track opened last become those of the track heard (its chapters copied:
+ * this may happen twice for one track) */
+static void tg_take(void)
+{
+    tg = tg_next;
+    tg.ch = &chap[0];
+    if (tg_next.ch)
+        chap[0] = *tg_next.ch;
+    else
+        chap[0].n = 0;
+}
 static int fresh;                               /* the output was (re)started: fade in once fed */
 static int draining;                            /* end of the queue: the DAC ring plays out */
 uint32_t heard_gen;
@@ -79,7 +93,7 @@ static void heard_sync(void)
         return;
     heard_gen = player_heard.gen;
     q_cur = q_dec;
-    tg = tg_next;
+    tg_take();
     rg_apply();
     resume_save();
 }
@@ -170,9 +184,11 @@ static int q_open(int i, int chain)
     f.size = e->size;
     fat_open(&f);
     uint32_t t0 = ticks();
+    tg_next.ch = &chap[1];
     tags_read(&f, flags & F_CODEC, &tg_next);
-    log_printf("ui: tags in %u us: '%s' / '%s' / '%s' / %u", ticks() - t0, tg_next.title,
-               tg_next.artist, tg_next.album, tg_next.track);
+    log_printf("ui: tags in %u us: '%s' / '%s' / '%s' / %u, %u chapters", ticks() - t0,
+               tg_next.title, tg_next.artist, tg_next.album, tg_next.track,
+               tg_next.ch ? tg_next.ch->n : 0);
     int was_on = audio.on;
     (void)chain;
     player_ogg_hint(tg_next.ogg_end_page, tg_next.ogg_end_seg);  /* core B skips the comment header */
@@ -249,7 +265,7 @@ void play_step(int i, int step)
         }
     }
     q_cur = q_dec;                              /* chosen: shown at once, even while the DACs */
-    tg = tg_next;                               /* change rate (published after it) */
+    tg_take();                                  /* change rate (published after it) */
     rg_apply();
 }
 

@@ -27,6 +27,7 @@
 #include "ui.h"
 #include "keymap.h"
 #include "theme.h"
+#include "book.h"
 
 #define TITLE_FG (th->title_fg)
 #define DIR_FG   (th->dir_fg)
@@ -135,6 +136,10 @@ void q_shuffle_new(void);                       /* another shuffled order */
 void q_from_dir(int start);
 void q_from_tree(const struct fat_dir *top, const char *name);
 void q_clear(void);
+/* FROST: the queue's folder (a tree: its top) and how it was built */
+extern struct fat_dir q_root;
+extern int q_tree;
+void q_from_folder(const struct fat_dir *d, const char *name, uint32_t cluster);
 void q_resort(void);                            /* FROST: Sort files changed */
 int q_on_sd(void);                              /* the queue is on the card */
 /* Track i: its entry and name (read again from its folder when needed; 0 / "" if unreadable) */
@@ -183,8 +188,14 @@ extern int jack_out;                            /* FROST: 0 none, 1 3.5 mm, 2 4.
 int seek_key(const struct key_ev *e);
 
 /* ---- menu.c ---- */
-enum { M_FILES, M_PLAYING, M_THEME, M_BUTTONS, M_SORT, M_TAGCP, M_CLOCK, M_RG, M_USB_RO,
-       M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
+enum { M_FILES, M_PLAYING, M_BOOKS, M_SLEEP, M_THEME, M_BUTTONS, M_SORT, M_TAGCP, M_CLOCK, M_RG,
+       M_USB_RO, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
+/* FROST: the sleep timer (ui.c): minutes, SLEEP_CHAPTER at the end of the chapter, 0 off */
+#define SLEEP_CHAPTER (-1)
+extern int sleep_set;
+uint32_t sleep_left_min(void);                  /* minutes left (rounded up), 0: off */
+void sleep_cycle(void);
+int books_screen(void);                         /* FROST: 1 when a book was started */
 int main_menu(void);
 void clock_screen(void);
 void buttons_screen(void);                      /* FROST: the button map editor */

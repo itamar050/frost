@@ -10,6 +10,10 @@ static const uint8_t defaults[KM_SCREENS][S_COUNT] = {
     [KM_BROWSER] = { A_OPEN, A_PLAY_ALL, A_PARENT, A_HOME, A_SWITCH, A_MENU, A_UP, A_DOWN, A_JUMP },
     [KM_PLAYING] = { A_PLAYPAUSE, A_NEXT, A_PREV, A_MODE, A_SWITCH, A_MENU, A_VOL_UP, A_VOL_DOWN,
                      A_SEEK },
+    /* an audiobook: PLAY held 30 s on, BACK held 30 s back, BACK the chapter's start or the one
+     * before, VOL+ then VOL- the next chapter */
+    [KM_BOOK]    = { A_PLAYPAUSE, A_FWD, A_PREV, A_REW, A_SWITCH, A_MENU, A_VOL_UP, A_VOL_DOWN,
+                     A_NEXT },
 };
 
 static const char *const names[A_COUNT] = {
@@ -17,7 +21,7 @@ static const char *const names[A_COUNT] = {
     "move up", "move down", "page up", "page down", "open / play", "play all under",
     "folder up", "home (top)", "quick jump",
     "play / pause", "next track", "previous track", "volume up", "volume down", "seek mode",
-    "forward 10 s", "back 10 s", "play mode", "shuffle on/off",
+    "forward (10 s, book 30 s)", "back (10 s, book 30 s)", "play mode", "shuffle on/off",
     "browser <-> playing", "main menu", "next theme", "screen off",
 };
 
@@ -159,7 +163,8 @@ static void parse_line(const char *l, int n, int *screen, int line)
         while (j < n && l[j] != ']')
             j++;
         *screen = word_eq(l + i, j - i, "browser") ? KM_BROWSER :
-                  word_eq(l + i, j - i, "playing") || word_eq(l + i, j - i, "play") ? KM_PLAYING : -1;
+                  word_eq(l + i, j - i, "playing") || word_eq(l + i, j - i, "play") ? KM_PLAYING :
+                  word_eq(l + i, j - i, "audiobook") || word_eq(l + i, j - i, "book") ? KM_BOOK : -1;
         if (*screen < 0)
             log_printf("keymap: line %d: unknown screen", line);
         return;

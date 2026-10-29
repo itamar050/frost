@@ -4,6 +4,7 @@
 # Actions: up down page_up page_down open play_all parent home jump
 #          play_pause next prev vol_up vol_down seek forward rewind mode shuffle
 #          switch menu theme screen_off none
+# Screens: [browser] [playing] [audiobook]
 
 [browser]
 # VOL keys scroll a page at a time instead of a row
@@ -16,3 +17,8 @@
 #back_hold = rewind
 # VOL+ then VOL- cycles the colour theme (instead of the seek mode)
 #chord = theme
+
+[audiobook]
+# VOL keys skip 30 s instead of changing the volume
+#vol_up = forward
+#vol_down = rewind

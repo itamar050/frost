@@ -5,12 +5,15 @@
 #include <stdint.h>
 #include "fat.h"
 
+struct chapters;                               /* book.h */
+
 struct tags {
     char title[96], artist[128], album[128];    /* UTF-8, empty when absent */
     uint16_t track, disc;                       /* 0: absent */
     int16_t rg_gain[2];                         /* ReplayGain, track and album: 1/100 dB */
     uint32_t rg_peak[2];                        /* their peaks, Q16 (65536 = full scale), 0: none */
     uint32_t ogg_end_page, ogg_end_seg;         /* Ogg: end of the comment header (hifi_proto.h) */
+    struct chapters *ch;                        /* FROST: where to put the chapters, or 0 */
 };
 
 #define RG_NONE  (-32768)                      /* rg_gain: no tag */

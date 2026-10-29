@@ -205,7 +205,7 @@ static int write_header(void)
     return emmc_write_log(file_first, 1, hdr);
 }
 
-static uint32_t state_sector;
+static uint32_t state_sector, book_sector;
 
 int log_attach(void)
 {
@@ -224,8 +224,10 @@ int log_attach(void)
     if (emmc_log_area(first, count))
         return logs.error = -4;
     file_first = first;
-    logs.file_sectors = count - 1;              /* the last sector keeps the resume state */
+    /* the last sector keeps the resume state; FROST: the 4 before it the audiobook bookmarks */
+    logs.file_sectors = count - 1 - LOG_BOOK_SECTORS;
     state_sector = first + count - 1;
+    book_sector = state_sector - LOG_BOOK_SECTORS;
     if (emmc_read(first, 1, hdr))
         return logs.error = -5;
     logs.next = 1;
@@ -237,7 +239,7 @@ int log_attach(void)
     if (h[0] == 'N' && h[1] == 'E' && h[2] == 'W' && h[3] == 'F' && h[4] == 'W' && h[9] == '1' &&
         h[11] == 'n' && h[15] == '=' && h[29] == '=' && h[39] == '=') {
         uint32_t next = parse_hex(h + 16, 8), fl = parse_hex(h + 30, 3);
-        if (next >= 1 && next < count - 1 && fl < 512) {
+        if (next >= 1 && next < logs.file_sectors && fl < 512) {
             logs.next = next;
             fill = fl;
             logs.wraps = parse_hex(h + 40, 8);
@@ -320,4 +322,19 @@ int log_state_write(const void *buf)
     if (!logs.attached || !state_sector)
         return -1;
     return emmc_write_log(state_sector, 1, buf);
+}
+
+/* FROST: the audiobook bookmarks, LOG_BOOK_SECTORS sectors before the resume state */
+int log_books_read(void *buf)
+{
+    if (!logs.attached || !book_sector)
+        return -1;
+    return emmc_read(book_sector, LOG_BOOK_SECTORS, buf);
+}
+
+int log_books_write(const void *buf)
+{
+    if (!logs.attached || !book_sector)
+        return -1;
+    return emmc_write_log(book_sector, LOG_BOOK_SECTORS, buf);
 }

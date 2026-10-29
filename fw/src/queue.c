@@ -8,6 +8,8 @@
 #include "ui_priv.h"
 
 int q_n, q_cur = -1, q_playing, q_errors;
+struct fat_dir q_root;                          /* FROST: the queue's folder, or tree's top */
+int q_tree;
 int q_dec;                                      /* the track core B decodes; q_cur: the one heard */
 char q_folder[64];
 
@@ -299,6 +301,8 @@ void q_from_dir(int start)
     if (ql_load(0) == 0)
         qd_set_count(0, ql.total - ql.dirs);
     q_done(path[depth].name, t0);
+    q_root = path[depth].dir;
+    q_tree = 0;
     if (ql.windowed) {                          /* a big folder: the same order in both */
         q_cur = start >= (int)ql.dirs ? start - (int)ql.dirs : 0;
         if (q_cur >= q_n)
@@ -360,6 +364,8 @@ void q_from_tree(const struct fat_dir *top, const char *name)
         }
     }
     ql.quiet = 1;
+    q_root = *top;
+    q_tree = 1;
     if (lost)
         log_printf("ui: %d folders left out (%d at most)", lost, Q_DIRS);
     q_done(name, t0);
@@ -393,4 +399,27 @@ void q_resort(void)
                 q_dec = q_cur;
             return;
         }
+}
+
+/* FROST: the playable files of folder d (a bookmark, the resume), from the track whose first
+ * cluster is 'cluster' (0, or not found: the first) */
+void q_from_folder(const struct fat_dir *d, const char *name, uint32_t cluster)
+{
+    uint32_t t0 = ticks();
+    q_clear();
+    qd_set(0, d, 0);
+    qd_n = 1;
+    if (ql_load(0) == 0)
+        qd_set_count(0, ql.total - ql.dirs);
+    q_done(name, t0);
+    q_root = *d;
+    q_tree = 0;
+    q_cur = 0;
+    for (uint32_t k = 0; cluster && k < (uint32_t)q_n; k++) {
+        const struct entry *e = ql_track(0, k);
+        if (e && e->cluster == cluster) {
+            q_cur = (int)k;
+            break;
+        }
+    }
 }

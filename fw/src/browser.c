@@ -527,6 +527,14 @@ static void enter(int i)
     copy_name(path[depth].name, ent_name(i), sizeof path[depth].name);
     dir_load(&d);
     card_failed();
+    const struct book *bm = book_of(&d);        /* FROST: a book: on its bookmarked chapter */
+    if (bm && !(bm->flags & BOOK_TREE))
+        for (int k = 0; k < dir_l.n; k++)
+            if (dir.e[dir.order[k]].cluster == bm->track_cluster) {
+                path[depth].sel = (int)dir_l.base + k;
+                path[depth].top = path[depth].sel > ROWS / 2 ? path[depth].sel - ROWS / 2 : 0;
+                break;
+            }
     resume_save();
 }
 
@@ -786,7 +794,11 @@ int browser_action(int a, int repeat)
             dir_of_entry(ent(sel), &d);
             b_dirty = 1;
             if (d.vol != FAT_VOL_SD || !sd_open()) {
+                const struct book *bm = book_of(&d);
+                if (bm && (bm->flags & BOOK_TREE) && !book_play(bm))
+                    return UI_FULL | UI_TO_PLAYING;     /* FROST: back into the book */
                 q_from_tree(&d, nm);
+                book_set(book_detect(nm));
                 if (q_n) {
                     play_index(0);
                     return UI_FULL | UI_TO_PLAYING;
@@ -799,6 +811,10 @@ int browser_action(int a, int repeat)
             if (parked && q_cur < q_n && q_ent(q_cur) && same_file(ent(sel), q_ent(q_cur)))
                 player_seek_hint(parked_ms);    /* the parked track: where it was */
             q_from_dir(sel);
+            book_set(book_detect(0));           /* FROST: a book: its bookmark */
+            const struct book *bm = q_book ? book_of(&q_root) : 0;
+            if (bm && q_ent(q_cur) && q_ent(q_cur)->cluster == bm->track_cluster && bm->pos_ms)
+                player_seek_hint(bm->pos_ms > 5000 ? bm->pos_ms - 5000 : 0);
             play_index(q_cur);
             return UI_FULL | UI_TO_PLAYING;
         }

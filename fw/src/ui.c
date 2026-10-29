@@ -151,6 +151,60 @@ static void draw_stats(int browser, int whole, uint32_t us)
     __builtin_memset(st, 0, sizeof st);
 }
 
+/* ---- FROST: the sleep timer: off, 15, 30, 45, 60, 90 min, the end of the chapter; then the
+ * music pauses (and the player powers off 10 min later, as after any pause) ---- */
+int sleep_set;
+static uint32_t sleep_at, sleep_mark;
+
+static uint32_t chapter_mark(void)
+{
+    int c = q_book ? chapter_at(tg.ch, now_ms()) : -1;
+    return (uint32_t)q_cur << 8 | (uint32_t)(c + 1);
+}
+
+void sleep_cycle(void)
+{
+    static const int steps[] = { 0, 15, 30, 45, 60, 90, SLEEP_CHAPTER };
+    unsigned i = 0;
+    while (i < sizeof steps / sizeof *steps && steps[i] != sleep_set)
+        i++;
+    sleep_set = steps[(i + 1) % (sizeof steps / sizeof *steps)];
+    sleep_at = sleep_set > 0 ? millis() + (uint32_t)sleep_set * 60000u : 0;
+    sleep_mark = chapter_mark();
+    log_printf("ui: sleep timer %d", sleep_set);
+}
+
+uint32_t sleep_left_min(void)
+{
+    if (sleep_set <= 0 || !sleep_at)
+        return 0;
+    int32_t d = (int32_t)(sleep_at - millis());
+    return d <= 0 ? 0 : ((uint32_t)d + 59999) / 60000;
+}
+
+static int sleep_service(void)
+{
+    if (!sleep_set || !q_playing || audio_paused)
+        return 0;
+    int due = sleep_set > 0 ? (int32_t)(millis() - sleep_at) >= 0 : chapter_mark() != sleep_mark;
+    if (!due)
+        return 0;
+    log_printf("ui: sleep timer: paused");
+    if (sleep_set == SLEEP_CHAPTER) {           /* the new chapter: stopped at its start */
+        int c = q_book ? chapter_at(tg.ch, now_ms()) : -1;
+        uint32_t at = c >= 0 ? tg.ch->ms[c] : 0;
+        play_stop(STOP_NOW);
+        parked = 1;
+        parked_ms = at;
+    } else
+        audio_pause(1);
+    sleep_set = 0;
+    sleep_at = 0;
+    resume_save();
+    sys_screen_set(0);
+    return 1;
+}
+
 /* MENU held: the main menu, then what was chosen in it */
 static void menu_open(int *scr)
 {
@@ -161,6 +215,10 @@ static void menu_open(int *scr)
         clock_screen();
     else if (m == M_BUTTONS)
         buttons_screen();
+    else if (m == M_BOOKS) {
+        if (books_screen())
+            *scr = SCR_PLAYING;
+    }
     else if (m == M_ABOUT)
         about_screen();
     else if (m == M_PLAYING)
@@ -194,6 +252,8 @@ void ui_main(void)
     uint32_t t_draw = 0, t_key = ticks(), t_save = millis(), key_ms = millis();
     uint32_t banner_ms = 0;                     /* a banner is shown (low battery, cannot play) */
     splash();                                   /* FROST: while the state is read */
+    if (!logs.attached)
+        mdelay(2500);                           /* the warning on it read */
     jack_out = key_plug(SRC_JACK44) ? 2 : key_plug(SRC_JACK35) ? 1 : 0;
     depth = 0;
     fat_root(VOL_TOP, &path[0].dir);
@@ -204,6 +264,8 @@ void ui_main(void)
         path_root(FAT_VOL_INT);
         dir_load(&path[1].dir);
     }
+    if (q_playing || parked)                    /* FROST: resumed: the play screen */
+        scr = SCR_PLAYING;
     for (;;) {
         sys_idle();
         ui_background();
@@ -238,12 +300,14 @@ void ui_main(void)
             banner_ms = 0;
             full = b_dirty = 1;
         }
+        if (sleep_service())
+            full = 1;
         int sw = sd_watch();
         if (sw)
             full = 1;
         if (sw == 2)
             scr = SCR_BROWSER;
-        if (q_playing && !audio_paused && millis() - t_save > 60000) {
+        if (q_playing && !audio_paused && millis() - t_save > 15000) {     /* FROST: 15 s */
             t_save = millis();                  /* the position, for a resume after a cut */
             resume_save();
         }
@@ -294,7 +358,8 @@ void ui_main(void)
             r = seek_key(&e);                   /* the seek mode keeps its own keys */
         else if (ev != EV_NONE) {
             /* FROST: the event to an action of the map (keymap.h) */
-            int rep, a = keymap_action(scr == SCR_BROWSER ? KM_BROWSER : KM_PLAYING, &e, &rep);
+            int rep, a = keymap_action(scr == SCR_BROWSER ? KM_BROWSER : q_book ? KM_BOOK : KM_PLAYING,
+                                       &e, &rep);
             if (sk_on && a != A_SEEK)
                 seek_end(0);
             if (a == A_MENU) {

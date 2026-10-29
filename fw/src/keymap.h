@@ -21,7 +21,7 @@ enum action {
     A_COUNT
 };
 
-enum { KM_BROWSER, KM_PLAYING, KM_SCREENS };
+enum { KM_BROWSER, KM_PLAYING, KM_BOOK, KM_SCREENS };    /* KM_BOOK: the play screen of a book */
 enum { S_PLAY, S_PLAY_HOLD, S_BACK, S_BACK_HOLD, S_MENU, S_MENU_HOLD, S_VOLUP, S_VOLDOWN,
        S_CHORD, S_COUNT };
 
