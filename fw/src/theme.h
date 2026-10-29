@@ -10,6 +10,7 @@ struct theme {
     uint16_t bg, fg, dim, title, warn, sel_bg, accent;  /* accent: the edge of the selection */
     uint16_t title_fg, dir_fg, bar_fg, bar_bg, sk_fg, rg_bg;
     uint16_t vu_lo, vu_mid, vu_hi;                      /* the level meters */
+    uint16_t tape;                                      /* the cassette's tape */
 };
 
 #define THEME_COUNT 6

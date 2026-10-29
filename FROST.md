@@ -58,8 +58,15 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
 ### Fun UI
 - **Six colour themes**: Classic, Snow (light), Neon, Cassette, Matrix and Sakura. Change them
   in Main menu → Theme; the change shows at once. The choice is kept when you power off.
-- **A cassette on the play screen.** The reels turn while music plays. The tape moves from
-  the left reel to the right as the track goes on, and the label shows the format and the rate.
+- **The play screen is a cassette.** The whole screen is drawn as a tape, with screws in the
+  corners and the colours of the theme you picked.
+  - **The label** carries the status line: play state, song number (e.g. 6/12), play mode, date
+    and time, the jack in use, and the battery icon and percentage.
+  - **The window:** two reels turn while music plays. Their tape packs shrink on the left and
+    grow on the right as the track goes on. Between the reels you see the title, artist, album
+    (long lines scroll) and the time.
+  - **Under the window:** the progress bar, the format and the volume.
+  - **The bottom of the shell** shows the level meters and the next track.
 - **Level meters**: two LED-style bars (L/R) with a peak hold, taken from the audio the DAC is
   playing at that moment.
 - **Status line**: play/pause/stop icon, song number (e.g. 6/12), play-mode icon, date and time
