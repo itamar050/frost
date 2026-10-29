@@ -56,6 +56,8 @@ installer) and adds what is listed below.
 player doesn't use, such as video files and lossy 5.1, are not included either.
 
 ### Screen and power
+- **Only Power switches the screen on.** With the screen off, the other keys do nothing at all,
+  so nothing changes in a pocket. The charging screen works the same way.
 - **Brightness** (Main menu → Brightness): 10 levels, from the stock firmware's backlight PWM at
   10 kHz. PLAY makes it brighter (after 10 it wraps to 1); PLAY held makes it dimmer. It is
   kept with the settings.

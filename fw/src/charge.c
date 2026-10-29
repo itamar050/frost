@@ -2,7 +2,7 @@
  * cable in. A battery bar from the voltage (the generic curve of board.c; a little high while
  * charging) and the charger's own state: "Charging" while it pulls its pin low, "Charged" after.
  * No resume, no codec, no USB disk. The screen goes off after SCREEN_TIMEOUT_US like the others
- * (then the clocks on the crystal); a short press of any key wakes it; PLAY held or Power held
+ * (then the clocks on the crystal); a short press of Power wakes it (FROST: only Power); PLAY held or Power held
  * 1 s starts the player as usual; the cable out powers it off. */
 #include <stdint.h>
 #include "audio.h"
@@ -100,8 +100,8 @@ void charge_screen(int at_boot)
                 start(at_boot, "PLAY");
                 return;
             }
-            if (e.type == EV_PRESS)
-                wake = 1;
+            if (e.type == EV_PRESS && !sys_screen_is_off())
+                wake = 1;                       /* FROST: a key keeps it on; only Power wakes it */
         }
         if (!released) {
             released = !power_key();            /* the press that brought us here */

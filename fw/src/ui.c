@@ -338,13 +338,11 @@ void ui_main(void)
             }
             ev = EV_NONE;
         }
-        if (ev != EV_NONE) {
+        if (ev != EV_NONE && sys_screen_is_off()) {
+            ev = EV_NONE;                       /* FROST: the screen off, the keys do nothing */
+        } else if (ev != EV_NONE) {             /* (only Power switches it on: pocket-safe) */
             t_key = ticks();
             key_ms = millis();
-            if (sys_screen_is_off()) {          /* the first key only switches the screen on */
-                sys_screen_set(1);
-                ev = EV_NONE;
-            }
         } else if (!sys_screen_is_off() && ticks() - t_key > SCREEN_TIMEOUT_US)
             sys_screen_set(0);
         if (sk_on && (millis() - sk_key_ms > SEEK_IDLE_MS || sk_cur != q_cur ||
