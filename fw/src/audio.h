@@ -47,5 +47,6 @@ void audio_beep(int kind);
 extern void (*ramp_hook)(void); /* keeps the ring fed during volume ramps (else silence) */
 int32_t audio_fill(void);       /* bytes written and not yet read */
 void audio_reset_stats(void);
+void audio_levels(uint32_t frames, uint32_t *l, uint32_t *r);   /* FROST: the meters */
 
 #endif

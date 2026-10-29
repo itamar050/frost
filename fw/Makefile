@@ -18,14 +18,14 @@ CFLAGS = -mcpu=cortex-m3 -mthumb -Os -g -ffreestanding -fno-builtin -nostdlib \
 WARN   = -Wshadow -Wmissing-prototypes -Wcast-qual -Wundef
 LDFLAGS = -T link.ld -Wl,--gc-sections -Wl,-Map=$(BUILD)/fw.map -nostdlib -lgcc
 
-SRCS = src/start.c src/board.c src/lcd.c src/emmc.c src/mshc.c src/sd.c src/sdtest.c src/keys.c src/fat.c src/update.c src/usb.c src/msc.c src/log.c src/i2c.c src/audio.c src/hifi.c src/player.c src/tags.c src/ui.c src/browser.c src/queue.c src/playback.c src/playscreen.c src/menu.c src/resume.c src/uidraw.c src/main.c src/install.c src/usbmode.c src/charge.c src/mp4.c src/font.c src/rtc.c src/probe.c $(BUILD)/font_ascii.c
+SRCS = src/start.c src/board.c src/lcd.c src/emmc.c src/mshc.c src/sd.c src/sdtest.c src/keys.c src/fat.c src/update.c src/usb.c src/msc.c src/log.c src/i2c.c src/audio.c src/hifi.c src/player.c src/tags.c src/ui.c src/browser.c src/queue.c src/playback.c src/playscreen.c src/menu.c src/resume.c src/uidraw.c src/main.c src/install.c src/usbmode.c src/charge.c src/mp4.c src/font.c src/rtc.c src/probe.c src/theme.c src/keymap.c $(BUILD)/font_ascii.c
 OBJS = $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS)))
 
 all: $(OUT)
 
-$(BUILD)/font.bin $(BUILD)/font_ascii.c: tools/mkfusion.py $(FONT_BDF)
+$(BUILD)/font.bin $(BUILD)/font_ascii.c: tools/mkfusion.py $(FONT_BDF) font/frost-hebrew.txt
 	@mkdir -p $(BUILD)
-	python3 tools/mkfusion.py $(FONT_BDF) $(BUILD)/font.bin $(BUILD)/font_ascii.c
+	python3 tools/mkfusion.py $(FONT_BDF) $(BUILD)/font.bin $(BUILD)/font_ascii.c --extra font/frost-hebrew.txt
 
 # Every object also depends on the flags (an EXTRA change rebuilds them) and, through -MMD, on
 # the headers it includes
@@ -190,9 +190,33 @@ $(BUILD)/hifi_mpc.elf: $(MPC_OBJS) $(HDEPS)
 	  $(MPC_OBJS) $(HLDFLAGS) -Wl,-Map=$(BUILD)/hifi_mpc.map -o $@
 	$(CROSS)size $@
 
-$(BUILD)/codecs.bin: $(BUILD)/hifi_pcm.elf $(BUILD)/hifi_flac.elf $(BUILD)/hifi_mp3.elf $(BUILD)/hifi_vorbis.elf $(BUILD)/hifi_opus.elf $(BUILD)/hifi_aac.elf $(BUILD)/hifi_alac.elf $(BUILD)/hifi_mpc.elf tools/mkpack.py
+# FROST: DSD (DSF, DFF) to PCM, our code; the filters from tools/mkdsdfir.py
+$(BUILD)/hifi_dsd.elf: $(HDEPS)
+	$(CC) $(HCFLAGS) -O3 hifi/rt.c hifi/codec_dsd.c $(HLDFLAGS) -Wl,-Map=$(BUILD)/hifi_dsd.map -o $@
+	$(CROSS)size $@
+
+# FROST: Monkey's Audio with libdemac (third_party/libdemac, Rockbox, GPL v2 or later, unmodified),
+# its portable C (no DSP instructions on the Cortex-M3), 16-bit filters
+DEMAC_DIR ?= ../third_party/libdemac
+DEMAC_SRCS := crc decoder entropy parser predictor filter_16_11 filter_32_10 filter_64_11 \
+              filter_256_13 filter_1280_15
+DEMAC_OBJS := $(patsubst %,$(BUILD)/demac/%.o,$(DEMAC_SRCS))
+DEMAC_FLAGS = -mcpu=cortex-m3 -mthumb -O2 -g -ffreestanding -nostdlib -ffunction-sections \
+              -fdata-sections -w -I$(DEMAC_DIR)
+
+$(BUILD)/demac/%.o: $(DEMAC_DIR)/%.c $(BUILD)/flags
+	@mkdir -p $(dir $@)
+	$(CC) $(DEMAC_FLAGS) -c $< -o $@
+
+$(BUILD)/hifi_ape.elf: $(DEMAC_OBJS) $(HDEPS)
+	$(CC) $(HCFLAGS) -I$(DEMAC_DIR) hifi/rt.c hifi/codec_ape.c $(DEMAC_OBJS) \
+	  $(HLDFLAGS) -Wl,-Map=$(BUILD)/hifi_ape.map -o $@
+	$(CROSS)size $@
+
+$(BUILD)/codecs.bin: $(BUILD)/hifi_ape.elf $(BUILD)/hifi_dsd.elf $(BUILD)/hifi_pcm.elf $(BUILD)/hifi_flac.elf $(BUILD)/hifi_mp3.elf $(BUILD)/hifi_vorbis.elf $(BUILD)/hifi_opus.elf $(BUILD)/hifi_aac.elf $(BUILD)/hifi_alac.elf $(BUILD)/hifi_mpc.elf tools/mkpack.py
 	python3 tools/mkpack.py $@ 1:$(BUILD)/hifi_pcm.elf 2:$(BUILD)/hifi_flac.elf 3:$(BUILD)/hifi_mp3.elf \
-	  4:$(BUILD)/hifi_vorbis.elf 5:$(BUILD)/hifi_opus.elf 7:$(BUILD)/hifi_aac.elf 8:$(BUILD)/hifi_alac.elf 9:$(BUILD)/hifi_mpc.elf
+	  4:$(BUILD)/hifi_vorbis.elf 5:$(BUILD)/hifi_opus.elf 7:$(BUILD)/hifi_aac.elf 8:$(BUILD)/hifi_alac.elf 9:$(BUILD)/hifi_mpc.elf \
+	  10:$(BUILD)/hifi_dsd.elf 11:$(BUILD)/hifi_ape.elf
 
 $(OUT): $(BUILD)/fw.elf $(BUILD)/codecs.bin $(BUILD)/font.bin tools/mkimg.py
 	python3 tools/mkimg.py $(BUILD)/fw.elf $@ --pack $(BUILD)/codecs.bin --font $(BUILD)/font.bin \

@@ -13,8 +13,28 @@ struct resume {
     uint32_t track;                             /* cluster of the track, 0: none */
     uint32_t playing, level, mode, pos_ms, sum;
 };
+/* FROST: more state in the same sector, from byte 256, with its own sum: the theme, the button
+ * map, the selections in full (32 bits: big folders) */
+#define X_OFF 256
+struct resume_x {
+    char magic[8];                              /* "FROSTX1" */
+    uint32_t theme;
+    uint8_t keymap[KM_SCREENS][S_COUNT];
+    uint8_t pad[20 - KM_SCREENS * S_COUNT];
+    uint32_t sel[DEPTH_MAX], top[DEPTH_MAX];
+    uint32_t sum;
+};
 static uint32_t rs_buf[128];
 static uint32_t rs_last_sum;
+
+static uint32_t x_sum(const struct resume_x *x)
+{
+    const uint32_t *w = (const uint32_t *)x;
+    uint32_t s = 0x46524f53;
+    for (unsigned i = 0; i < offsetof(struct resume_x, sum) / 4; i++)
+        s = (s << 5 | s >> 27) ^ w[i];
+    return s;
+}
 
 static uint32_t rs_sum(const struct resume *r)
 {
@@ -44,9 +64,21 @@ void resume_save(void)
     r->mode = (uint32_t)(play_mode | rg_mode << 8);    /* rg_mode 0 (album) before 0.55 */
     r->pos_ms = parked ? parked_ms : q_playing ? player_heard.time_ms : 0;
     r->sum = rs_sum(r);
-    if (r->sum == rs_last_sum)
+    struct resume_x *x = (struct resume_x *)((uint8_t *)rs_buf + X_OFF);
+    __builtin_memset(x, 0, sizeof *x);
+    __builtin_memcpy(x->magic, "FROSTX1", 8);
+    x->theme = (uint32_t)theme_index;
+    for (int m = 0; m < KM_SCREENS; m++)
+        for (int k = 0; k < S_COUNT; k++)
+            x->keymap[m][k] = keymap[m][k];
+    for (int i = 0; i <= depth && i < DEPTH_MAX; i++) {
+        x->sel[i] = (uint32_t)path[i].sel;
+        x->top[i] = (uint32_t)path[i].top;
+    }
+    x->sum = x_sum(x);
+    if ((r->sum ^ x->sum) == rs_last_sum)
         return;                                 /* nothing changed: no write */
-    rs_last_sum = r->sum;
+    rs_last_sum = r->sum ^ x->sum;
     log_state_write(rs_buf);
 }
 
@@ -73,13 +105,32 @@ static int find_entry(const struct fat_dirent *d, void *ctx)
 void resume_load(void)
 {
     struct resume *r = (struct resume *)rs_buf;
-    if (log_state_read(rs_buf) || r->sum != rs_sum(r) ||
+    struct resume_x *x = (struct resume_x *)((uint8_t *)rs_buf + X_OFF);
+    keymap_defaults();
+    if (log_state_read(rs_buf)) {
+        keymap_load_file();
+        return;
+    }
+    int xok = !__builtin_memcmp(x->magic, "FROSTX1", 8) && x->sum == x_sum(x);
+    if (xok) {
+        theme_set((int)x->theme);
+        for (int m = 0; m < KM_SCREENS; m++)
+            for (int k = 0; k < S_COUNT; k++)
+                keymap[m][k] = x->keymap[m][k];
+        keymap_fix();
+    }
+    if (keymap_load_file() == 0)                /* KEYMAP.TXT, when there is one, wins */
+        log_printf("keymap: %s", xok ? "the one kept" : "defaults");
+    if (r->sum != rs_sum(r) ||
         (__builtin_memcmp(r->magic, "NEWFWSTATE 3", 12) &&
          __builtin_memcmp(r->magic, "NEWFWSTATE 2", 12)) || (r->depth & 0xff) >= DEPTH_MAX - 1)
         return;
     /* state 2 (before 0.58): no top level, index 0 was the internal root */
     int old = r->magic[11] == '2', saved = (int)(r->depth & 0xff) + old, v = (int)(r->depth >> 8);
-    rs_last_sum = r->sum;
+    rs_last_sum = r->sum ^ (xok ? x->sum : 0);
+    int full = xok && !old;                     /* the selections in full (FROST) */
+#define SEL(i) (full ? (int)x->sel[i] : (int)r->sel[i])
+#define TOP(i) (full ? (int)x->top[i] : (int)r->top[i])
     if (r->level <= 0xfe)
         play_level = (int)r->level;
     if ((r->mode & 0xff) < MODE_COUNT)
@@ -90,7 +141,7 @@ void resume_load(void)
         v = FAT_VOL_INT;
     if (!saved || v > FAT_VOL_SD || (v == FAT_VOL_SD && sd_open())) {
         depth = 0;                              /* the top level (or the card is gone) */
-        path[0].sel = old ? 0 : r->sel[0];
+        path[0].sel = old ? 0 : SEL(0);
         dir_load(&path[0].dir);
         if (path[0].sel >= dir_n)
             path[0].sel = 0;
@@ -98,8 +149,8 @@ void resume_load(void)
         return;
     }
     path_root(v);
-    path[1].sel = r->sel[1 - old];
-    path[1].top = r->top[1 - old];
+    path[1].sel = SEL(1 - old);
+    path[1].top = TOP(1 - old);
     for (int i = 2; i <= saved; i++) {          /* the folder names, from their parents */
         path[i].name[0] = 0;
         find_name = path[i].name;
@@ -108,8 +159,8 @@ void resume_load(void)
         fat_list(&path[i - 1].dir, find_entry, 0);
         if (!path[i].name[0])
             break;                              /* gone: stop at the parent */
-        path[i].sel = r->sel[i - old];
-        path[i].top = r->top[i - old];
+        path[i].sel = SEL(i - old);
+        path[i].top = TOP(i - old);
         depth = i;
     }
     dir_load(&path[depth].dir);
@@ -120,7 +171,8 @@ void resume_load(void)
                r->playing, (uint32_t)play_level / 2);
     if (!r->track || depth != saved)
         return;
-    for (int i = 0; i < dir_n; i++)
+    list_index(&dir_l, (uint32_t)path[depth].sel);     /* a big folder: the window there */
+    for (int i = (int)dir_l.base; i < (int)dir_l.base + dir_l.n; i++)
         if (!(ent(i)->flags & F_DIR) && ent(i)->cluster == r->track) {
             path[depth].sel = i;
             if (path[depth].sel < path[depth].top || path[depth].sel >= path[depth].top + ROWS)

@@ -314,6 +314,35 @@ static uint32_t audio_dma_pos(void)
     return REG(CH_SAR) - audio.ring;
 }
 
+/* FROST: the peak of each channel over the next 'frames' frames the DMA will read (what is
+ * heard now; the volume is the DACs', so these are the levels of the music), 0 to 32767 */
+void audio_levels(uint32_t frames, uint32_t *l, uint32_t *r)
+{
+    *l = *r = 0;
+    if (!audio.on || audio_paused || !audio.ring)
+        return;
+    uint32_t fb = audio.bits16 ? 4 : 8, pos = audio_dma_pos() & ~(fb - 1), ml = 0, mr = 0;
+    const volatile uint32_t *ring = (const volatile uint32_t *)audio.ring;
+    for (uint32_t i = 0; i < frames; i++, pos = (pos + fb) % audio.ring_size) {
+        int32_t a, b;
+        if (fb == 4) {
+            uint32_t w = ring[pos / 4];
+            a = (int16_t)(w & 0xffff);
+            b = (int16_t)(w >> 16);
+        } else {
+            a = (int32_t)ring[pos / 4] >> 16;
+            b = (int32_t)ring[pos / 4 + 1] >> 16;
+        }
+        uint32_t ua = (uint32_t)(a < 0 ? -a : a), ub = (uint32_t)(b < 0 ? -b : b);
+        if (ua > ml)
+            ml = ua;
+        if (ub > mr)
+            mr = ub;
+    }
+    *l = ml > 32767 ? 32767 : ml;
+    *r = mr > 32767 ? 32767 : mr;
+}
+
 static uint32_t i2s_fifo(void)
 {
     return REG(I2S_FIFOLR) & 0x3f;

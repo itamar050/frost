@@ -599,6 +599,14 @@ def main():
     if "--png" in sys.argv:
         panel.png(opt("--png", "screen.png"))
     mmc.report(opt("--expect-fw", None))
+    if "--log" in sys.argv:                                       # FROST: the firmware's log ring
+        hdr = u.mem_read(0x0309c000, 20)
+        wr = struct.unpack_from("<I", hdr, 8)[0]
+        data = bytes(u.mem_read(0x0309c000 + 20, 0x3000 - 20))
+        n = len(data)
+        txt = data[:wr] if wr <= n else data[wr % n:] + data[:wr % n]
+        print("---- firmware log ----")
+        print(txt.decode("utf-8", "replace"))
     if opt("--dump-disk", None):                                  # disk with the writes applied
         import shutil
         out = opt("--dump-disk", None)

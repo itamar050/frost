@@ -236,9 +236,12 @@ static int draw_glyph(int x, int y, const uint8_t *g, uint16_t fg, uint16_t bg, 
 }
 
 /* s scrolled left by 'off' pixels in [x, xmax): s, a gap of 'gap' pixels, s again */
+static const char *bidi(const char *s);     /* FROST: below */
+
 void lcd_text_scroll(int x, int y, const char *s, int xmax, int off, int gap, uint16_t fg,
                      uint16_t bg)
 {
+    s = bidi(s);
     int pos = x - off;
     for (int copy = 0; copy < 2 && pos < xmax; copy++) {
         for (const char *t = s; *t && pos < xmax;) {
@@ -261,6 +264,113 @@ void lcd_text_scroll(int x, int y, const char *s, int xmax, int off, int gap, ui
 int lcd_glyph(int x, int y, uint32_t cp, uint16_t fg, uint16_t bg)
 {
     return draw_glyph(x, y, font_glyph(cp), fg, bg, 1);
+}
+
+
+/* ---- FROST: right-to-left text (Hebrew). A line holding Hebrew is put in visual order before it
+ * is drawn: runs of Hebrew letters (with the spaces and punctuation between them) reversed,
+ * brackets mirrored inside them; numbers and Latin words keep their order. The lines stay
+ * left to right as a whole (the screens are left-aligned, as a PC shows file names). A simple
+ * form of the Unicode bidirectional algorithm, enough for file names and tags. ---- */
+#define BIDI_MAX 160                            /* code points of a line */
+uint32_t utf8_next(const char **ps);
+static int is_rtl(uint32_t c)
+{
+    return (c >= 0x0590 && c <= 0x05ff) || (c >= 0xfb1d && c <= 0xfb4f);
+}
+
+static int is_neutral(uint32_t c)
+{
+    return c == ' ' || c == '-' || c == '_' || c == '.' || c == ',' || c == '(' || c == ')' ||
+           c == '[' || c == ']' || c == '\'' || c == '"' || c == '!' || c == '?' || c == ':' ||
+           c == ';' || c == '/' || c == '&' || c == '+' || c == 0x2013 || c == 0x2014;
+}
+
+static uint32_t mirror(uint32_t c)
+{
+    return c == '(' ? ')' : c == ')' ? '(' : c == '[' ? ']' : c == ']' ? '[' : c == '<' ? '>' :
+           c == '>' ? '<' : c;
+}
+
+static char *put_utf8(char *p, uint32_t c)
+{
+    if (c < 0x80)
+        *p++ = (char)c;
+    else if (c < 0x800) {
+        *p++ = (char)(0xc0 | c >> 6);
+        *p++ = (char)(0x80 | (c & 0x3f));
+    } else if (c < 0x10000) {
+        *p++ = (char)(0xe0 | c >> 12);
+        *p++ = (char)(0x80 | (c >> 6 & 0x3f));
+        *p++ = (char)(0x80 | (c & 0x3f));
+    } else {
+        *p++ = (char)(0xf0 | c >> 18);
+        *p++ = (char)(0x80 | (c >> 12 & 0x3f));
+        *p++ = (char)(0x80 | (c >> 6 & 0x3f));
+        *p++ = (char)(0x80 | (c & 0x3f));
+    }
+    return p;
+}
+
+static const char *bidi(const char *s)
+{
+    static char out[BIDI_MAX * 4 + 1];
+    static uint32_t cp[BIDI_MAX];
+    static uint8_t dir[BIDI_MAX];               /* 1: right to left */
+    int n = 0, any = 0, para = -1;
+    for (const char *t = s; *t && n < BIDI_MAX;) {
+        uint32_t c = utf8_next(&t);
+        cp[n++] = c;
+        if (is_rtl(c))
+            any = 1;
+    }
+    para = 0;                                   /* the line left to right */
+    if (!any)
+        return s;
+    for (int i = 0; i < n; i++)                 /* strong letters; digits left to right */
+        dir[i] = is_rtl(cp[i]) ? 1 : is_neutral(cp[i]) ? 2 : 0;
+    for (int i = 0; i < n;) {                   /* neutrals: their neighbours' direction when */
+        if (dir[i] != 2) {                      /* both agree, else the line's */
+            i++;
+            continue;
+        }
+        int j = i;
+        while (j < n && dir[j] == 2)
+            j++;
+        int a = i ? dir[i - 1] : para, b = j < n ? dir[j] : para;
+        uint8_t d = (uint8_t)(a == b ? a : para);
+        for (int k = i; k < j; k++)
+            dir[k] = d;
+        i = j;
+    }
+    /* runs in visual order: for a right-to-left line, the runs from the last */
+    char *p = out;
+    int start = para ? n : 0;
+    for (int done = 0; done < n;) {
+        int a, b;                               /* the run [a, b) */
+        if (para) {
+            b = start;
+            a = b - 1;
+            while (a > 0 && dir[a - 1] == dir[b - 1])
+                a--;
+            start = a;
+        } else {
+            a = start;
+            b = a + 1;
+            while (b < n && dir[b] == dir[a])
+                b++;
+            start = b;
+        }
+        if (dir[a])
+            for (int k = b - 1; k >= a; k--)
+                p = put_utf8(p, mirror(cp[k]));
+        else
+            for (int k = a; k < b; k++)
+                p = put_utf8(p, cp[k]);
+        done += b - a;
+    }
+    *p = 0;
+    return out;
 }
 
 uint32_t utf8_next(const char **ps)
@@ -300,6 +410,7 @@ int lcd_text_width(const char *s)
  * of the band up to xmax is filled with bg. Returns the x reached. */
 int lcd_text_clip_x(int x, int y, const char *s, int xmax, uint16_t fg, uint16_t bg, int sc)
 {
+    s = bidi(s);
     int ell = glyph_width(font_glyph(0x2026)) * sc;
     int fits = x + lcd_text_width_x(s, sc) <= xmax;
     while (*s) {
@@ -325,6 +436,7 @@ int lcd_text_clip(int x, int y, const char *s, int xmax, uint16_t fg, uint16_t b
 
 int lcd_text(int x, int y, const char *s, uint16_t fg, uint16_t bg)
 {
+    s = bidi(s);
     while (*s)
         x += lcd_glyph(x, y, utf8_next(&s), fg, bg);
     return x;

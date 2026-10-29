@@ -51,6 +51,8 @@ static uint32_t codec_of(const char *name)
         { "aif", HP_CODEC_AIFF }, { "aifc", HP_CODEC_AIFF }, { "m4a", HP_CODEC_AAC },
         { "m4b", HP_CODEC_AAC }, { "mp4", HP_CODEC_AAC }, { "mpc", HP_CODEC_MPC },
         { "mp+", HP_CODEC_MPC }, { "mpp", HP_CODEC_MPC },
+        { "dsf", HP_CODEC_DSD }, { "dff", HP_CODEC_DSD },             /* FROST */
+        { "ape", HP_CODEC_APE },
     };
     const char *dot = 0;
     for (const char *p = name; *p; p++)
@@ -72,26 +74,29 @@ static uint32_t codec_of(const char *name)
 
 /* ---- directory listings: the folder shown (in .dirbuf), and the queue's (queue.c) ---- */
 static struct dir_buf dir __attribute__((section(".dirbuf")));
-static struct listing dir_l = { dir.e, dir.order, dir.pool, DIR_MAX, sizeof dir.pool, 0, 0, 0, 0,
-                                0 };
+struct listing dir_l = { .e = dir.e, .order = dir.order, .pool = dir.pool, .max = DIR_MAX,
+                         .pool_size = sizeof dir.pool, .name_keep = NAME_KEEP };
 int dir_n;
-static int dir_full;
+
+static const struct entry no_entry;             /* an entry that could not be read */
 
 const char *ent_name(int i)
 {
-    return dir.pool + dir.e[dir.order[i]].name;
+    int k = list_index(&dir_l, (uint32_t)i);
+    return k < 0 ? "" : dir.pool + dir.e[k].name;
 }
 
 const struct entry *ent(int i)
 {
-    return &dir.e[dir.order[i]];
+    int k = list_index(&dir_l, (uint32_t)i);
+    return k < 0 ? &no_entry : &dir.e[k];
 }
 
 /* An entry at the end of the listing, its name (len bytes) into the pool; 0 when it is full */
 static int list_add(struct listing *l, const char *name, uint32_t len, uint32_t cluster,
                     uint32_t size, uint16_t flags)
 {
-    if (l->used + len + 1 > l->pool_size) {
+    if (l->n >= (int)l->max || l->used + len + 1 > l->pool_size || l->used + len + 1 > 0xffff) {
         l->full = 1;
         return 0;
     }
@@ -109,31 +114,53 @@ static int list_add(struct listing *l, const char *name, uint32_t len, uint32_t 
     return 1;
 }
 
-static int collect(const struct fat_dirent *d, void *ctx)
+/* The walk of a folder: pass 1 counts everything and keeps what fits (to be sorted); pass 2
+ * (windowed) keeps the entries [base, base + max) of the order on the disk, folders first */
+struct walk {                                   /* one per walk: a walk may run within another */
+    struct listing *l;                          /* (the queue's, from the playback, while the */
+    int pass;                                   /* browser reads) */
+    uint32_t dirs, files, fdirs, ffiles;        /* pass 1: counted; pass 2: seen so far */
+};
+
+static int add_dirent(struct listing *l, const struct fat_dirent *d, uint32_t codec)
 {
-    struct listing *l = ctx;
-    uint32_t codec = d->attr & FAT_ATTR_DIR ? 0 : codec_of(d->name);
-    if (!(d->attr & FAT_ATTR_DIR) && (!codec || (l->skip_empty && !d->size)))
-        return 0;                               /* not something we play (the queue: empty) */
-    /* a big folder: files stop at max - 50, the last places are kept for folders, and the
-     * whole directory is still read so that no folder goes missing */
-    if (l->n >= (int)(d->attr & FAT_ATTR_DIR ? l->max : l->max - 50)) {
-        l->full = 1;
-        return 0;
-    }
-    uint32_t len = 0;
+    uint32_t len = 0, keep = (uint32_t)l->name_keep;
     while (d->name[len])
         len++;
-    if (len > NAME_KEEP) {                      /* more than the screen shows: cut on a */
-        len = NAME_KEEP;                        /* character boundary */
+    if (len > keep) {                           /* more than the screen shows: cut on a */
+        len = keep;                             /* character boundary */
         while (len && ((uint8_t)d->name[len] & 0xc0) == 0x80)
             len--;
     }
-    if (!list_add(l, d->name, len, d->cluster, d->size,
-                  (uint16_t)((d->attr & FAT_ATTR_DIR ? F_DIR : codec) |
-                             (d->vol == FAT_VOL_SD ? F_SD : 0) | (d->contig ? F_CONTIG : 0))))
-        return 0;
-    if (!(l->n & 31) && !l->quiet)
+    return list_add(l, d->name, len, d->cluster, d->size,
+                    (uint16_t)((d->attr & FAT_ATTR_DIR ? F_DIR : codec) |
+                               (d->vol == FAT_VOL_SD ? F_SD : 0) | (d->contig ? F_CONTIG : 0)));
+}
+
+static int collect(const struct fat_dirent *d, void *ctx)
+{
+    struct walk *w = ctx;
+    struct listing *l = w->l;
+    int isdir = (d->attr & FAT_ATTR_DIR) != 0;
+    uint32_t codec = isdir ? 0 : codec_of(d->name);
+    if (!isdir && !codec)
+        return 0;                               /* not something we play */
+    if (w->pass == 1) {
+        if (isdir)
+            w->dirs++;
+        else
+            w->files++;
+        if (!l->full && !(!isdir && l->skip_empty && !d->size))
+            add_dirent(l, d, codec);            /* (the queue: empty files left out) */
+    } else {
+        uint32_t ord = isdir ? w->fdirs++ : w->dirs + w->ffiles++;
+        if (ord >= l->base && ord < l->base + l->max) {
+            int at = l->n;
+            if (add_dirent(l, d, codec))
+                l->order[ord - l->base] = (uint16_t)at;
+        }
+    }
+    if (!((w->dirs + w->files + w->fdirs + w->ffiles) & 31) && !l->quiet)
         ui_background();                        /* keep the music going while we read */
     return 0;
 }
@@ -163,16 +190,73 @@ static void list_sort(struct listing *l)
     }
 }
 
-/* A folder of a volume into l, sorted (folders first, then natural order): < 0 on a read error */
+/* The window of a big folder from 'base' (pass 2 only: the counts are known) */
+static int list_window(struct listing *l, uint32_t base)
+{
+    uint32_t t0 = ticks();
+    if (l->total > l->max && base > l->total - l->max)
+        base = l->total - l->max;
+    l->base = base;
+    l->n = l->full = 0;
+    l->used = 0;
+    for (uint32_t i = 0; i < l->max; i++)
+        l->order[i] = 0xffff;
+    if (l->dir.vol == FAT_VOL_SD && sd_open())
+        return -1;
+    struct walk wk = { l, 2, l->dirs, 0, 0, 0 };
+    int r = fat_list(&l->dir, collect, &wk);
+    int n = 0;                                  /* what follows the base without a gap (the */
+    while (n < (int)l->max && l->order[n] != 0xffff)    /* folder may have changed) */
+        n++;
+    l->n = n;
+    log_printf("ui: window %u..%u of %u in %u ms", base, base + (uint32_t)n, l->total,
+               (ticks() - t0) / 1000);
+    return r;
+}
+
+/* A folder of a volume into l: < 0 on a read error. Up to max entries: all, sorted (folders
+ * first, then natural order); more: windowed, the first window */
 int list_load(struct listing *l, const struct fat_dir *d)
 {
     l->n = l->full = 0;
     l->used = 0;
+    l->base = 0;
+    l->windowed = 0;
+    l->dir = *d;
     if (d->vol == FAT_VOL_SD && sd_open())
         return -1;
-    int r = fat_list(d, collect, l);
-    list_sort(l);
-    return r;
+    struct walk wk = { l, 1, 0, 0, 0, 0 };
+    int r = fat_list(d, collect, &wk);
+    if (!l->full && wk.dirs + wk.files <= l->max) {
+        list_sort(l);
+        l->dirs = wk.dirs;
+        l->total = (uint32_t)l->n;
+        return r;
+    }
+    l->windowed = 1;                            /* a big folder: the order on the disk */
+    l->dirs = wk.dirs;
+    l->total = wk.dirs + wk.files;
+    int r2 = list_window(l, 0);
+    return r < 0 ? r : r2;
+}
+
+/* (both return an index in l->e) */
+int list_cached(const struct listing *l, uint32_t ord)
+{
+    if (ord < l->base || ord >= l->base + (uint32_t)l->n)
+        return -1;
+    return l->order[ord - l->base];
+}
+
+int list_index(struct listing *l, uint32_t ord)
+{
+    if (ord >= l->total)
+        return -1;
+    int k = list_cached(l, ord);
+    if (k >= 0 || !l->windowed)
+        return k;
+    list_window(l, ord > l->max / 2 ? ord - l->max / 2 : 0);    /* centred on it */
+    return list_cached(l, ord);
 }
 
 /* The top level (ETUDE §38): the internal volume, then the card when one is in */
@@ -184,6 +268,7 @@ static void top_entry(const char *name, uint16_t flags)
     while (name[len])
         len++;
     list_add(&dir_l, name, len, 0, 0, (uint16_t)(F_DIR | F_VOLROOT | flags));
+    dir_l.total = dir_l.dirs = (uint32_t)dir_l.n;
 }
 
 int dir_load(const struct fat_dir *d)
@@ -193,6 +278,9 @@ int dir_load(const struct fat_dir *d)
     if (d->vol == VOL_TOP) {
         dir_l.n = dir_l.full = 0;
         dir_l.used = 0;
+        dir_l.base = 0;
+        dir_l.windowed = 0;
+        dir_l.dir = *d;
         top_entry("Internal", 0);
         if (sd_present())
             top_entry(sd_bad ? "SD card (not readable)" : "SD card", F_SD);
@@ -204,11 +292,10 @@ int dir_load(const struct fat_dir *d)
             sd_bad = 1;
         }
     }
-    dir_n = dir_l.n;
-    dir_full = dir_l.full;
+    dir_n = (int)dir_l.total;
     if (d->vol != VOL_TOP)
         log_printf("ui: folder %s%x: %d entries%s in %u ms", d->vol == FAT_VOL_SD ? "sd:" : "",
-                   d->cluster, dir_n, dir_full ? " (more not shown)" : "", (ticks() - t0) / 1000);
+                   d->cluster, dir_n, dir_l.windowed ? " (big: windowed)" : "", (ticks() - t0) / 1000);
     return r;
 }
 
@@ -250,9 +337,11 @@ static int playing_index(void)                  /* the row of the track that pla
     const struct entry *qe = q_playing && q_cur < q_n ? q_ent(q_cur) : 0;
     if (!qe)
         return -1;
-    for (int i = 0; i < dir_n; i++)
-        if (!(ent(i)->flags & F_DIR) && same_file(ent(i), qe))
-            return i;
+    for (int k = 0; k < dir_l.n; k++) {         /* in what is read (a big folder: its window) */
+        const struct entry *e = &dir.e[dir.order[k]];
+        if (!(e->flags & F_DIR) && same_file(e, qe))
+            return (int)dir_l.base + k;
+    }
     return -1;
 }
 
@@ -270,8 +359,12 @@ static void draw_row(int r, int sel, int mark)
     int dirent = e->flags & F_DIR;
     /* a fixed column for the mark: » folder, ♪ the track that plays */
     lcd_fill(0, y, 22, 16, bg);
+    if (i == sel)
+        lcd_fill(0, y, 3, 16, ACCENT);          /* FROST: the edge of the selection */
     if (dirent || i == mark)
         lcd_glyph(dirent ? 6 : 3, y, dirent ? 0xbb : 0x266a, dirent ? DIR_FG : TITLE_FG, bg);
+    else if (e->size)                           /* FROST: a dot in the colour of the format */
+        lcd_fill(9, y + 6, 5, 5, theme_codec_color(e->flags & F_CODEC));
     lcd_text_clip(22, y, ent_name(i), list_text_end(dir_n, ROWS), dirent ? DIR_FG : e->size ? FG : DIM,
                   bg);
 }
@@ -285,8 +378,6 @@ static void draw_count(int sel)
         *p++ = '/';
     }
     p = put_dec(p, (uint32_t)dir_n);
-    if (dir_full)
-        *p++ = '+';
     *p = 0;
     text_right(LCD_W - 70, LCD_W - 4, 0, b, DIM, BG);
 }
@@ -465,25 +556,201 @@ int sd_watch(void)
     return 1 + stopped;
 }
 
-static void move(int d)
+/* FROST: fast moves. One row a press; held, faster the longer: rows, then 4 at a time, then
+ * pages, then 1/40 of a big folder. Held moves stop at the ends; a single press wraps around. */
+static void move(int d, int repeat)
 {
-    list_move(&path[depth].sel, &path[depth].top, dir_n, ROWS, d);
+    int n = dir_n, *sel = &path[depth].sel, *top = &path[depth].top;
+    if (n <= 0)
+        return;
+    if (!repeat) {
+        list_move(sel, top, n, ROWS, d);
+        return;
+    }
+    uint32_t held = key_held_us();
+    int step = held < 1500000u ? 1 : held < 3000000u ? 4 : held < 5000000u ? ROWS : n / 40;
+    if (step < ROWS && held >= 3000000u)
+        step = ROWS;
+    int s = *sel + d * step;
+    if (s < 0)
+        s = 0;
+    if (s >= n)
+        s = n - 1;
+    *sel = s;
+    if (*sel < *top)
+        *top = *sel;
+    if (*sel >= *top + ROWS)
+        *top = *sel - ROWS + 1;
 }
 
-/* A key on the browser: VOL+/VOL- move, BACK goes up, PLAY opens a folder or plays the file and
- * those after it, PLAY held on a folder plays all that is under it. Returns UI_* (ui_priv.h). */
-int browser_key(const struct key_ev *e)
+static void page(int d)
 {
-    int k = e->key, ev = e->type;
-    if (k == KEY_VOLUP)
-        move(-1);
-    else if (k == KEY_VOLDOWN)
-        move(1);
-    else if (k == KEY_BACK && ev == EV_PRESS)
+    int n = dir_n, *sel = &path[depth].sel, *top = &path[depth].top;
+    if (n <= 0)
+        return;
+    int s = *sel + d * ROWS;
+    s = s < 0 ? (*sel == 0 ? n - 1 : 0) : s >= n ? (*sel == n - 1 ? 0 : n - 1) : s;
+    *sel = s;
+    *top = s - (*sel - *top);
+    if (*top > s)
+        *top = s;
+    if (*top < 0 || s < ROWS)
+        *top = 0;
+    if (s >= *top + ROWS)
+        *top = s - ROWS + 1;
+    if (*top > n - ROWS)
+        *top = n > ROWS ? n - ROWS : 0;
+}
+
+/* Home: the root of the volume shown, or from there the top level */
+void browser_home(void)
+{
+    if (depth <= 1) {
+        depth = 0;
+        dir_load(&path[0].dir);
+    } else {
+        depth = 1;
+        dir_load(&path[1].dir);
+    }
+    card_failed();
+    if (path[depth].sel >= dir_n)
+        path[depth].sel = path[depth].top = 0;
+    b_dirty = 1;
+    resume_save();
+}
+
+/* ---- quick jump (VOL+ then VOL-): a sorted folder by its first letters, a big one by tenths ---- */
+#define JUMP_MAX 64
+static struct { int at; uint32_t cp; } jt[JUMP_MAX];
+static int jt_n;
+
+static uint32_t initial(const char *s)
+{
+    uint32_t c = utf8_next(&s);
+    if (c >= 'a' && c <= 'z')
+        c -= 32;
+    if (c >= '0' && c <= '9')
+        c = '#';
+    return c;
+}
+
+static void jump_targets(void)
+{
+    jt_n = 0;
+    if (dir_l.windowed) {                       /* not sorted: 0 %, 10 %, ... 90 % */
+        for (int i = 0; i < 10; i++) {
+            jt[jt_n].at = (int)((int64_t)dir_n * i / 10);
+            jt[jt_n++].cp = '0' + (uint32_t)i;
+        }
+        return;
+    }
+    uint32_t last = 0;
+    int last_dir = -1;
+    for (int i = 0; i < dir_n && jt_n < JUMP_MAX; i++) {
+        int isdir = (ent(i)->flags & F_DIR) != 0;
+        uint32_t c = initial(ent_name(i));
+        if (c != last || isdir != last_dir) {
+            jt[jt_n].at = i;
+            jt[jt_n++].cp = c | (isdir ? 0x80000000u : 0);
+            last = c;
+            last_dir = isdir;
+        }
+    }
+}
+
+static void jump_draw(int j)
+{
+    int x0 = 70, y0 = 30, w = LCD_W - 140, h = 110;
+    lcd_fill(x0, y0, w, h, SEL_BG);
+    lcd_fill(x0, y0, w, 3, ACCENT);
+    lcd_fill(x0, y0 + h - 3, w, 3, ACCENT);
+    char b[24], *p = b;
+    uint32_t c = jt[j].cp & 0x7fffffffu;
+    if (dir_l.windowed) {
+        p = put_dec(p, (c - '0') * 10);
+        *p++ = '%';
+    } else {                                    /* the letter, as UTF-8 */
+        if (c < 0x80)
+            *p++ = (char)c;
+        else if (c < 0x800) {
+            *p++ = (char)(0xc0 | c >> 6);
+            *p++ = (char)(0x80 | (c & 0x3f));
+        } else if (c < 0x10000) {
+            *p++ = (char)(0xe0 | c >> 12);
+            *p++ = (char)(0x80 | (c >> 6 & 0x3f));
+            *p++ = (char)(0x80 | (c & 0x3f));
+        }
+    }
+    *p = 0;
+    int bw = lcd_text_width_x(b, 4);
+    lcd_text_clip_x(x0 + (w - bw) / 2, y0 + 12, b, x0 + (w + bw) / 2, FG, SEL_BG, 4);
+    const char *hint = dir_l.windowed ? "of the folder" : jt[j].cp >> 31 ? "folders" : "files";
+    int hw = lcd_text_width(hint);
+    lcd_text_clip(x0 + (w - hw) / 2, y0 + 80, hint, x0 + (w + hw) / 2, DIM, SEL_BG);
+}
+
+static void jump_mode(void)
+{
+    jump_targets();
+    if (jt_n < 2)
+        return;
+    int j = 0;
+    for (int i = 0; i < jt_n; i++)              /* start at the place shown */
+        if (jt[i].at <= path[depth].sel)
+            j = i;
+    jump_draw(j);
+    uint32_t t = millis();
+    for (;;) {
+        sys_idle();
+        ui_background();
+        struct key_ev e;
+        int ev = key_poll(&e);
+        if (ev == EV_NONE) {
+            if (millis() - t > 1500)            /* no key: go there */
+                break;
+            cpu_wait();
+            continue;
+        }
+        t = millis();
+        if (e.key == KEY_VOLUP && ev != EV_CHORD)
+            j = j ? j - 1 : jt_n - 1;
+        else if (e.key == KEY_VOLDOWN && ev != EV_CHORD)
+            j = j + 1 < jt_n ? j + 1 : 0;
+        else if (e.key == KEY_BACK && ev == EV_PRESS) {
+            b_dirty = 1;
+            return;
+        } else if ((e.key == KEY_PLAY || e.key == KEY_MENU) && ev == EV_PRESS)
+            break;
+        else
+            continue;
+        jump_draw(j);
+    }
+    path[depth].sel = jt[j].at;
+    path[depth].top = jt[j].at;
+    if (path[depth].top > dir_n - ROWS)
+        path[depth].top = dir_n > ROWS ? dir_n - ROWS : 0;
+    b_dirty = 1;
+}
+
+/* An action on the browser (FROST, keymap.h). The defaults: VOL+/VOL- move, BACK goes up, BACK
+ * held home, PLAY opens a folder or plays the file and those after it, PLAY held on a folder
+ * plays all that is under it, VOL+ then VOL- the quick jump. Playback actions go to the play
+ * screen's handler. Returns UI_* (ui_priv.h). */
+int browser_action(int a, int repeat)
+{
+    if (a == A_UP || a == A_DOWN)
+        move(a == A_UP ? -1 : 1, repeat);
+    else if (a == A_PAGE_UP || a == A_PAGE_DOWN)
+        page(a == A_PAGE_UP ? -1 : 1);
+    else if (a == A_PARENT)
         leave();
-    else if (k == KEY_PLAY && dir_n) {
+    else if (a == A_HOME)
+        browser_home();
+    else if (a == A_JUMP)
+        jump_mode();
+    else if ((a == A_OPEN || a == A_PLAY_ALL) && dir_n) {
         int sel = path[depth].sel;
-        if ((ent(sel)->flags & F_DIR) && ev == EV_PRESS)
+        if ((ent(sel)->flags & F_DIR) && a == A_OPEN)
             enter(sel);
         else if (ent(sel)->flags & F_DIR) {
             char nm[64];                        /* held on a folder: all that is under it */
@@ -499,15 +766,18 @@ int browser_key(const struct key_ev *e)
                 }
             } else
                 dir_load(&path[depth].dir);     /* "SD card (not readable)" */
-        } else if (ev == EV_PRESS && !ent(sel)->size) {
+        } else if (!ent(sel)->size) {
             play_failed(ent_name(sel), Q_EEMPTY); /* empty (grey): not played, the queue kept */
-        } else if (ev == EV_PRESS) {
+        } else {
             if (parked && q_cur < q_n && q_ent(q_cur) && same_file(ent(sel), q_ent(q_cur)))
                 player_seek_hint(parked_ms);    /* the parked track: where it was */
             q_from_dir(sel);
             play_index(q_cur);
             return UI_FULL | UI_TO_PLAYING;
         }
+    } else if (a >= A_PLAYPAUSE && a <= A_SHUFFLE && a != A_SEEK) {
+        play_action(a, repeat);
+        b_dirty = 1;
     }
     return UI_FULL;
 }

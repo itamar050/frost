@@ -14,26 +14,43 @@ char q_folder[64];
 /* ---- the folders of the queue ---- */
 struct q_dir {
     uint32_t cluster, size;
-    uint16_t count;                             /* its tracks */
-    uint8_t vol, flags;                         /* QD_CONTIG, its level (QD_LEVEL) */
+    uint16_t count;                             /* its tracks (low 16 bits) */
+    uint8_t vol, flags;                         /* QD_CONTIG, its level (QD_LEVEL), QD_HIGH */
 };
 #define QD_CONTIG 0x80
+#define QD_HIGH   0x70                          /* FROST: bits 16-18 of the count (524,287) */
 #define QD_LEVEL  0x0f
-#define Q_LEVELS  8                             /* the folder held and 7 levels under it */
+#define Q_LEVELS  15                            /* the folder held and 14 levels under it */
 static struct q_dir qd[Q_DIRS] __attribute__((section(".pmusram")));
 static int qd_n;
 
-/* The queue's listing: one folder at a time */
-#define QL_MAX 600
+static uint32_t qd_count(int f)
+{
+    return qd[f].count | (uint32_t)(qd[f].flags & QD_HIGH) << 12;
+}
+
+static void qd_set_count(int f, uint32_t n)
+{
+    if (n > 0x7ffff)
+        n = 0x7ffff;
+    qd[f].count = (uint16_t)n;
+    qd[f].flags = (uint8_t)((qd[f].flags & ~QD_HIGH) | (n >> 12 & QD_HIGH));
+}
+
+/* The queue's listing: one folder at a time (FROST: as many entries as the browser's, so that a
+ * folder is held whole, or windowed, in both; names cut shorter) */
+#define QL_MAX   LIST_MAX
+#define QL_NAME  48
 static struct {
     struct entry e[QL_MAX];
     uint16_t order[QL_MAX];
-    char pool[0x8000 - QL_MAX * (sizeof(struct entry) + 2)];
+    char pool[QL_MAX * (QL_NAME + 1)];
 } ql_buf __attribute__((section(".queuebuf")));
-static struct listing ql = { ql_buf.e, ql_buf.order, ql_buf.pool, QL_MAX, sizeof ql_buf.pool,
-                             0, 0, 0, 1, 1 };
+static struct listing ql = { .e = ql_buf.e, .order = ql_buf.order, .pool = ql_buf.pool,
+                             .max = QL_MAX, .pool_size = sizeof ql_buf.pool, .skip_empty = 1,
+                             .quiet = 1, .name_keep = QL_NAME };
 static int ql_dir = -1;                         /* the qd[] in ql, -1: none */
-static int ql_files;                            /* ql's first file in its order (folders first) */
+static int ql_busy;
 
 static void qd_fat_dir(int f, struct fat_dir *d)
 {
@@ -48,24 +65,31 @@ static void qd_fat_dir(int f, struct fat_dir *d)
  * screen and the music going, and a track asked for meanwhile gets "" (not a read within it). */
 static int ql_load(int f)
 {
-    static int busy;
     if (ql_dir == f)
         return 0;
-    if (busy)
+    if (ql_busy)
         return -1;
     struct fat_dir d;
     qd_fat_dir(f, &d);
     ql_dir = -1;
-    busy = 1;
+    ql_busy = 1;
     int r = list_load(&ql, &d);
-    busy = 0;
+    ql_busy = 0;
     if (r < 0)
         return -1;
-    ql_files = 0;
-    while (ql_files < ql.n && (ql.e[ql.order[ql_files]].flags & F_DIR))
-        ql_files++;
     ql_dir = f;
     return 0;
+}
+
+/* Track k of folder f: its entry in ql (a big folder: the window moved), or 0 */
+static const struct entry *ql_track(int f, uint32_t k)
+{
+    if (ql_load(f) || ql_busy)
+        return 0;
+    ql_busy = 1;
+    int i = list_index(&ql, ql.dirs + k);
+    ql_busy = 0;
+    return i < 0 ? 0 : &ql.e[i];
 }
 
 /* ---- the tracks used lately: their entry and name ---- */
@@ -94,15 +118,16 @@ static int slot_of(int i)                       /* the slot of track i, read if 
         }
     if (i < 0 || i >= q_n)
         return -1;
-    int f = 0, k = i;
-    while (f < qd_n && k >= qd[f].count)
-        k -= qd[f++].count;
-    if (f >= qd_n || ql_load(f) || ql_files + k >= ql.n)
+    int f = 0;
+    uint32_t k = (uint32_t)i;
+    while (f < qd_n && k >= qd_count(f))
+        k -= qd_count(f++);
+    const struct entry *e = f < qd_n ? ql_track(f, k) : 0;
+    if (!e)
         return -1;                              /* not readable, or changed since */
     for (s = 1; s < SLOTS; s++)
         if (slot[s].used < slot[old].used)
             old = s;
-    const struct entry *e = &ql.e[ql.order[ql_files + k]];
     slot[old].i = i;
     slot[old].used = ++slot_clock;
     slot[old].e = *e;
@@ -233,7 +258,7 @@ static void q_done(const char *name, uint32_t t0)
 {
     q_n = 0;
     for (int f = 0; f < qd_n; f++)
-        q_n += qd[f].count;
+        q_n += (int)qd_count(f);
     slots_clear();
     q_shuffle_new();
     copy_name(q_folder, name, sizeof q_folder);
@@ -257,7 +282,7 @@ static void qd_set(int f, const struct fat_dir *d, int level)
 {
     qd[f].cluster = d->cluster;
     qd[f].size = d->size;
-    qd[f].count = 0;
+    qd[f].count = 0;                            /* (QD_HIGH cleared below) */
     qd[f].vol = d->vol;
     qd[f].flags = (uint8_t)((d->contig ? QD_CONTIG : 0) | level);
 }
@@ -270,15 +295,21 @@ void q_from_dir(int start)
     qd_set(0, &path[depth].dir, 0);
     qd_n = 1;
     if (ql_load(0) == 0)
-        qd[0].count = (uint16_t)(ql.n - ql_files);
+        qd_set_count(0, ql.total - ql.dirs);
     q_done(path[depth].name, t0);
+    if (ql.windowed) {                          /* a big folder: the same order in both */
+        q_cur = start >= (int)ql.dirs ? start - (int)ql.dirs : 0;
+        if (q_cur >= q_n)
+            q_cur = 0;
+        return;
+    }
     for (int i = start; i < dir_n; i++) {      /* the one chosen, or the next if it is empty */
         const struct entry *e = ent(i);
         if ((e->flags & F_DIR) || !e->size)
             continue;
-        for (int k = ql_files; k < ql.n; k++)
+        for (int k = (int)ql.dirs; k < ql.n; k++)
             if (ql.e[ql.order[k]].cluster == e->cluster) {
-                q_cur = k - ql_files;
+                q_cur = k - (int)ql.dirs;
                 return;
             }
         break;
@@ -299,15 +330,17 @@ void q_from_tree(const struct fat_dir *top, const char *name)
     ql.quiet = 0;
     for (int p = 0; p < qd_n;) {
         int level = qd[p].flags & QD_LEVEL;
-        if (ql_load(p) < 0) {                   /* unreadable: left out */
-            ql.n = ql_files = 0;
+        uint32_t nd = 0, nf = 0;
+        if (ql_load(p) == 0) {                  /* unreadable: left out */
+            nd = ql.dirs < (uint32_t)ql.n ? ql.dirs : (uint32_t)ql.n;   /* (first window) */
+            nf = ql.total - ql.dirs;
         }
-        int subs = level + 1 < Q_LEVELS ? ql_files : 0;
+        int subs = level + 1 < Q_LEVELS ? (int)nd : 0;
         if (subs > Q_DIRS - qd_n) {
             lost += subs - (Q_DIRS - qd_n);
             subs = Q_DIRS - qd_n;
         }
-        int files = ql.n - ql_files;
+        uint32_t files = nf;
         struct fat_dir d;
         qd_move(p + 1 + subs, p + 1);
         for (int s = 0; s < subs; s++) {
@@ -317,7 +350,7 @@ void q_from_tree(const struct fat_dir *top, const char *name)
         qd_n += subs;
         ql_dir = -1;                            /* the indexes move */
         if (files) {
-            qd[p].count = (uint16_t)files;
+            qd_set_count(p, files);
             p++;
         } else {                                /* no track: out of the table */
             qd_move(p, p + 1);

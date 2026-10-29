@@ -1,0 +1,18 @@
+# FROST button map. Rename to KEYMAP.TXT and copy it to the root of the internal memory.
+# Only the lines you write change; the rest keeps the defaults. Lines starting with # are notes.
+# Slots:   play play_hold back back_hold menu menu_hold vol_up vol_down chord
+# Actions: up down page_up page_down open play_all parent home jump
+#          play_pause next prev vol_up vol_down seek forward rewind mode shuffle
+#          switch menu theme screen_off none
+
+[browser]
+# VOL keys scroll a page at a time instead of a row
+#vol_up = page_up
+#vol_down = page_down
+
+[playing]
+# PLAY held skips 10 s ahead, BACK held 10 s back (instead of next track / play mode)
+#play_hold = forward
+#back_hold = rewind
+# VOL+ then VOL- cycles the colour theme (instead of the seek mode)
+#chord = theme

@@ -727,4 +727,21 @@ void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
         mp4(t);
     else if (codec == HP_CODEC_MPC)
         apev2(t);
+    else if (codec == HP_CODEC_APE) {           /* FROST: APEv2 at the end, else ID3v1 */
+        apev2(t);
+        if (!t->title[0])
+            id3v1(t);
+    } else if (codec == HP_CODEC_DSD) {         /* FROST: DSF, ID3v2 where its header says */
+        uint8_t h[28];
+        struct fat_cursor c = { 0, 0 };
+        if (f->size >= 28 && fat_pread(f, &c, 0, h, 28) == 28 && h[0] == 'D' && h[1] == 'S' &&
+            h[2] == 'D' && h[3] == ' ') {
+            uint32_t meta = (uint32_t)h[20] | (uint32_t)h[21] << 8 | (uint32_t)h[22] << 16 |
+                            (uint32_t)h[23] << 24;
+            if (meta && !h[24] && !h[25] && !h[26] && !h[27] && meta < f->size) {
+                rd.lim = f->size;
+                id3v2(t, meta);
+            }
+        }
+    }
 }

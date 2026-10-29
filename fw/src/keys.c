@@ -190,3 +190,13 @@ uint32_t key_held_us(void)
 {
     return ticks() - kp_t0;
 }
+
+/* FROST: a plug's state as last taken (SRC_JACK35, SRC_JACK44, SRC_USB); before the first
+ * reading, the pin itself */
+int key_plug(int src)
+{
+    int i = src - SRC_JACK35;
+    if (i < 0 || i > 2)
+        return 0;
+    return plug_ready ? plug_in[i] : plug_read(i);
+}

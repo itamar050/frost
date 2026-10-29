@@ -25,26 +25,34 @@
 #include "sys.h"
 #include "tags.h"
 #include "ui.h"
+#include "keymap.h"
+#include "theme.h"
 
-#define TITLE_FG RGB(255, 210, 90)
-#define DIR_FG   RGB(140, 200, 255)
-#define BAR_FG   RGB(90, 160, 255)
-#define SK_FG    RGB(255, 150, 60)              /* the seek target */
-#define RG_TRACK_BG RGB(240, 200, 0)            /* ReplayGain of the track (not the album) */
+#define TITLE_FG (th->title_fg)
+#define DIR_FG   (th->dir_fg)
+#define BAR_FG   (th->bar_fg)
+#define SK_FG    (th->sk_fg)                    /* the seek target */
+#define RG_TRACK_BG (th->rg_bg)                 /* ReplayGain of the track (not the album) */
 
 /* What a key handler asks of the main loop */
 #define UI_FULL       1                         /* draw the screen in full */
 #define UI_QUICK      2                         /* redraw its bands soon */
 #define UI_TO_PLAYING 4                         /* show the play screen */
 
-/* ---- browser.c: listing entries (also the queue's) ---- */
-#define DIR_MAX   1000
+/* ---- browser.c: listing entries (also the queue's) ----
+ * FROST: a folder of up to LIST_MAX entries is held whole and sorted (folders first, natural
+ * order). A bigger one has no limit: it is shown in its order on the disk (its folders first),
+ * through a window of LIST_MAX entries read again around the place wanted (list_index). The
+ * browser and the queue use the same rule on the same count, so their orders always agree. */
+#define LIST_MAX  1000
+#define DIR_MAX   LIST_MAX
 #define F_DIR     0x8000
 #define F_SD      0x4000                        /* on the card (else the internal volume) */
 #define F_CONTIG  0x2000                        /* exFAT "no FAT chain" */
 #define F_VOLROOT 0x1000                        /* the top level: a volume */
 #define F_CODEC   0x0fff
-#define NAME_KEEP 72                            /* bytes of a name kept (the screen shows ~40) */
+#define NAME_KEEP 64                            /* bytes of a name kept (the screen shows ~40);
+                                                   LIST_MAX of them fit the 16-bit pool offsets */
 struct entry {
     uint32_t cluster, size;
     uint16_t name;              /* offset in the pool */
@@ -53,7 +61,7 @@ struct entry {
 struct dir_buf {
     struct entry e[DIR_MAX];
     uint16_t order[DIR_MAX];
-    char pool[81920];
+    char pool[DIR_MAX * (NAME_KEEP + 1)];
 };
 /* A folder listing on a buffer of its own: the folder shown (browser.c), the queue's (queue.c) */
 struct listing {
@@ -62,12 +70,22 @@ struct listing {
     char *pool;
     uint32_t max, pool_size, used;
     int n, full;
-    int skip_empty;                             /* empty files left out (the queue) */
+    int skip_empty;                             /* empty files left out (the queue; held whole) */
     int quiet;                                  /* no ui_background() while reading: a short
                                                    read from within the playback (the queue) */
+    int name_keep;                              /* bytes of each name kept */
+    int windowed;                               /* more than max entries: a window of the folder */
+    uint32_t base;                              /* the folder's entry at order[0] */
+    uint32_t total, dirs;                       /* entries of the folder, of which folders */
+    struct fat_dir dir;                         /* the folder listed */
 };
 int list_load(struct listing *l, const struct fat_dir *d);
+/* Entry 'ord' of the folder (folders first): its place in l->order, the window moved there when
+ * needed; -1 when it cannot be read */
+int list_index(struct listing *l, uint32_t ord);
+int list_cached(const struct listing *l, uint32_t ord);   /* the same, never read: -1 */
 extern int dir_n;
+extern struct listing dir_l;
 const char *ent_name(int i);                    /* the i-th entry shown, sorted */
 const struct entry *ent(int i);
 int dir_load(const struct fat_dir *d);
@@ -92,7 +110,8 @@ int sd_watch(void);                             /* the detect switch: 1 redraw, 
 #define ROW_Y0 18
 extern int b_dirty;                             /* the browser page must be drawn again */
 void draw_browser(void);
-int browser_key(const struct key_ev *e);
+int browser_action(int a, int repeat);     /* FROST: an action (keymap.h) on the browser */
+void browser_home(void);
 
 /* ---- queue.c ---- */
 #define Q_DIRS 4000                             /* folders with tracks in the queue (§79) */
@@ -148,14 +167,20 @@ void seek_end(int go);
 /* ---- playscreen.c ---- */
 void draw_playing(int full);
 void marquee_tick(void);
-int play_key(const struct key_ev *e);
+int play_action(int a, int repeat);        /* FROST: an action on the play screen (or a
+                                                   playback action from the browser) */
+void vu_tick(void);
+extern int jack_out;                            /* FROST: 0 none, 1 3.5 mm, 2 4.4 mm */                             /* FROST: the level meters of the play screen */
 int seek_key(const struct key_ev *e);
 
 /* ---- menu.c ---- */
-enum { M_FILES, M_PLAYING, M_CLOCK, M_RG, M_USB_RO, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER,
-       M_COUNT };
+enum { M_FILES, M_PLAYING, M_THEME, M_BUTTONS, M_CLOCK, M_RG, M_USB_RO, M_USB_RW, M_INSTALL,
+       M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
 int main_menu(void);
 void clock_screen(void);
+void buttons_screen(void);                      /* FROST: the button map editor */
+void about_screen(void);
+void splash(void);
 
 /* ---- resume.c ---- */
 void resume_save(void);

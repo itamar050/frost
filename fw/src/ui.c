@@ -159,9 +159,13 @@ static void menu_open(int *scr)
         *scr = SCR_BROWSER;
     else if (m == M_CLOCK)
         clock_screen();
+    else if (m == M_BUTTONS)
+        buttons_screen();
+    else if (m == M_ABOUT)
+        about_screen();
     else if (m == M_PLAYING)
         *scr = SCR_PLAYING;
-    else if (m >= M_USB_RO) {
+    else if (m >= M_USB_RO && m <= M_LOADER) {
         play_stop(STOP_NOW);                    /* the rest needs the audio and core B */
         if (m == M_USB_RO || m == M_USB_RW)
             sys_usb(m == M_USB_RW);
@@ -189,6 +193,8 @@ void ui_main(void)
     int lvl_key = play_level;                   /* the volume before a VOL key: undone by a chord */
     uint32_t t_draw = 0, t_key = ticks(), t_save = millis(), key_ms = millis();
     uint32_t banner_ms = 0;                     /* a banner is shown (low battery, cannot play) */
+    splash();                                   /* FROST: while the state is read */
+    jack_out = key_plug(SRC_JACK44) ? 2 : key_plug(SRC_JACK35) ? 1 : 0;
     depth = 0;
     fat_root(VOL_TOP, &path[0].dir);
     copy_name(path[0].name, "Storage", sizeof path[0].name);
@@ -252,8 +258,22 @@ void ui_main(void)
             lvl_key = play_level;
         struct key_ev e;
         int ev = key_poll(&e), k = e.key;
-        if (ev == EV_PLUG || ev == EV_UNPLUG)
-            ev = EV_NONE;                       /* logged (keys.c); no action yet */
+        if (ev == EV_PLUG || ev == EV_UNPLUG) {
+            /* FROST: the jack in use shown; headphones pulled out: the music paused */
+            if (k == SRC_JACK35 || k == SRC_JACK44) {
+                int was = jack_out;
+                jack_out = key_plug(SRC_JACK44) ? 2 : key_plug(SRC_JACK35) ? 1 : 0;
+                log_printf("ui: output %s", jack_out == 2 ? "4.4 mm balanced" :
+                           jack_out == 1 ? "3.5 mm" : "none");
+                if (ev == EV_UNPLUG && was && !jack_out && q_playing && !audio_paused) {
+                    audio_pause(1);
+                    resume_save();
+                    log_printf("ui: headphones out: paused");
+                }
+                full = 1;
+            }
+            ev = EV_NONE;
+        }
         if (ev != EV_NONE) {
             t_key = ticks();
             key_ms = millis();
@@ -269,28 +289,41 @@ void ui_main(void)
             full = 1;                           /* changed meanwhile: nothing) */
         }
         int r = 0;
-        if (ev == EV_CHORD) {
-            if (scr == SCR_PLAYING && !sk_on) {
-                play_level = lvl_key;           /* the steps of a VOL key held before it undone */
-                volume(0);
-                seek_begin();
-                r = UI_FULL;
-            }
-        } else if (ev != EV_NONE && sk_on && scr == SCR_PLAYING && !(k == KEY_MENU && ev == EV_LONG))
-            r = seek_key(&e);
+        if (ev != EV_NONE && sk_on && scr == SCR_PLAYING && ev != EV_CHORD &&
+            !(k == KEY_MENU && ev == EV_LONG))
+            r = seek_key(&e);                   /* the seek mode keeps its own keys */
         else if (ev != EV_NONE) {
-            if (sk_on)
+            /* FROST: the event to an action of the map (keymap.h) */
+            int rep, a = keymap_action(scr == SCR_BROWSER ? KM_BROWSER : KM_PLAYING, &e, &rep);
+            if (sk_on && a != A_SEEK)
                 seek_end(0);
-            if (k == KEY_MENU && ev == EV_LONG) {
+            if (a == A_MENU) {
                 menu_open(&scr);
                 r = UI_FULL;
                 b_dirty = 1;
-            } else if (k == KEY_MENU && ev == EV_PRESS) {
+            } else if (a == A_SWITCH) {
                 scr = scr == SCR_BROWSER ? SCR_PLAYING : SCR_BROWSER;
                 r = UI_FULL;
                 b_dirty = 1;
-            } else
-                r = scr == SCR_BROWSER ? browser_key(&e) : play_key(&e);
+            } else if (a == A_SEEK) {
+                if (ev == EV_CHORD) {           /* the steps of a VOL key held before it undone */
+                    play_level = lvl_key;
+                    volume(0);
+                }
+                if (!sk_on && (q_playing || parked)) {
+                    scr = SCR_PLAYING;
+                    seek_begin();
+                }
+                r = UI_FULL;
+            } else if (a == A_THEME) {
+                theme_set((theme_index + 1) % THEME_COUNT);
+                resume_save();
+                r = UI_FULL;
+                b_dirty = 1;
+            } else if (a == A_SCREEN_OFF) {
+                sys_screen_set(0);
+            } else if (a != A_NONE)
+                r = scr == SCR_BROWSER ? browser_action(a, rep) : play_action(a, rep);
         }
         if (r & UI_FULL)
             full = 1;
@@ -317,8 +350,11 @@ void ui_main(void)
                     draw_playing(full);
                 draw_stats(scr == SCR_BROWSER, whole, ticks() - t_draw);
                 full = quick = 0;
-            } else if (scr == SCR_PLAYING)
+            } else if (scr == SCR_PLAYING) {
                 marquee_tick();
+                if (!sk_on)
+                    vu_tick();
+            }
         }
         cpu_wait();                             /* until the next 1 ms tick */
     }

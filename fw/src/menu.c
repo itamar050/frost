@@ -1,10 +1,12 @@
 /* The main menu (MENU held) and the date and time screen */
 #include "ui_priv.h"
+#include "version.h"
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Date and time", "ReplayGain: ", "USB disk, read only", "USB disk, read/write",
-    "Install a firmware (.IMG)", "System screen", "USB loader mode (exit: RST)",
+    "Files", "Now playing", "Theme: ", "Buttons", "Date and time", "ReplayGain: ",
+    "USB disk, read only", "USB disk, read/write", "Install a firmware (.IMG)", "System screen",
+    "USB loader mode (exit: RST)", "About FROST",
 };
 
 int main_menu(void)
@@ -13,15 +15,20 @@ int main_menu(void)
     for (;;) {
         if (dirty) {                            /* ROWS of the M_COUNT entries: scrolled */
             lcd_fill(0, 0, LCD_W, LCD_H, BG);
-            lcd_text(4, 0, "Menu", TITLE_FG, BG);
+            lcd_glyph(4, 0, 0x266b, ACCENT, BG);
+            lcd_text(18, 0, "FROST", TITLE_FG, BG);
             for (int i = top; i < M_COUNT && i < top + ROWS; i++) {
                 uint16_t bg = i == sel ? SEL_BG : BG;
                 int y = ROW_Y0 + 16 * (i - top);
                 lcd_fill(0, y, LCD_W, 16, bg);
+                if (i == sel)
+                    lcd_fill(0, y, 3, 16, ACCENT);
                 char b[48];
                 char *p = put_str(b, m_names[i]);
                 if (i == M_RG)
                     p = put_str(p, rg_names[rg_mode]);
+                if (i == M_THEME)
+                    p = put_str(p, th->name);
                 *p = 0;
                 lcd_text_clip(12, y, b, list_text_end(M_COUNT, ROWS), FG, bg);
             }
@@ -36,7 +43,11 @@ int main_menu(void)
             cpu_wait();
             continue;
         }
-        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_RG) {
+        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_THEME) {
+            theme_set((theme_index + 1) % THEME_COUNT);     /* seen at once */
+            resume_save();
+            dirty = 1;
+        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_RG) {
             rg_mode = (rg_mode + 1) % RG_MODES; /* album, track, off: changed in place */
             rg_apply();
             resume_save();
@@ -138,5 +149,103 @@ void clock_screen(void)
             dirty = 1;
         } else if (k == KEY_MENU && ev == EV_PRESS)
             return;
+    }
+}
+
+/* ---- FROST: the button map editor. MENU switches the screen (browser / play screen), VOL+ and
+ * VOL- move, PLAY gives the slot the next action (held: the one before), BACK held puts the
+ * defaults back, BACK saves and leaves. ---- */
+void buttons_screen(void)
+{
+    int scr = KM_BROWSER, sel = 0, top = 0, dirty = 1;
+    for (;;) {
+        if (dirty) {
+            lcd_fill(0, 0, LCD_W, LCD_H, BG);
+            lcd_text(4, 0, scr == KM_BROWSER ? "Buttons: browser" : "Buttons: play screen",
+                     TITLE_FG, BG);
+            text_right(LCD_W - 120, LCD_W - 4, 0, "MENU: other", DIM, BG);
+            for (int i = top; i < S_COUNT && i < top + 8; i++) {
+                int y = ROW_Y0 + 16 * (i - top);
+                uint16_t bg = i == sel ? SEL_BG : BG;
+                lcd_fill(0, y, LCD_W, 16, bg);
+                if (i == sel)
+                    lcd_fill(0, y, 3, 16, ACCENT);
+                lcd_text_clip(8, y, slot_name(i), 120, DIR_FG, bg);
+                lcd_text_clip(124, y, action_name(keymap[scr][i]), LCD_W - 4,
+                              keymap[scr][i] ? FG : DIM, bg);
+            }
+            lcd_text(4, 154, "PLAY: change  BACK: done  BACK held: reset", DIM, BG);
+            dirty = 0;
+        }
+        sys_idle();
+        ui_background();
+        struct key_ev e;
+        int ev = key_poll(&e), k = e.key;
+        if (ev == EV_NONE) {
+            cpu_wait();
+            continue;
+        }
+        dirty = 1;
+        if (k == KEY_VOLUP && ev != EV_CHORD)
+            list_move(&sel, &top, S_COUNT, 8, -1);
+        else if (k == KEY_VOLDOWN && ev != EV_CHORD)
+            list_move(&sel, &top, S_COUNT, 8, 1);
+        else if (k == KEY_MENU && ev == EV_PRESS)
+            scr = scr == KM_BROWSER ? KM_PLAYING : KM_BROWSER;
+        else if (k == KEY_PLAY && (ev == EV_PRESS || ev == EV_LONG)) {
+            int a = keymap[scr][sel] + (ev == EV_PRESS ? 1 : -1);
+            keymap[scr][sel] = (uint8_t)(a < 0 ? A_COUNT - 1 : a >= A_COUNT ? 0 : a);
+        } else if (k == KEY_BACK && ev == EV_LONG) {
+            keymap_defaults();
+            lcd_fill(0, 60, LCD_W, 40, SEL_BG);
+            lcd_text(80, 72, "defaults put back", FG, SEL_BG);
+            mdelay(700);
+        } else if (k == KEY_BACK && ev == EV_PRESS) {
+            keymap_fix();
+            resume_save();
+            log_printf("keymap: saved from the editor");
+            return;
+        }
+    }
+}
+
+/* ---- FROST: about, and the boot splash ---- */
+static void snowflake(int cx, int cy, int r, uint16_t c)
+{
+    for (int i = -r; i <= r; i++) {             /* the three axes, and the little branches */
+        lcd_fill(cx + i, cy, 1, 1, c);
+        lcd_fill(cx, cy + i, 1, 1, c);
+        lcd_fill(cx + i, cy + i, 1, 1, c);
+        lcd_fill(cx + i, cy - i, 1, 1, c);
+    }
+    for (int s = -1; s <= 1; s += 2) {
+        int a = r * 2 / 3, b = r / 4;
+        lcd_fill(cx + s * a - b, cy - b, 1, 2 * b + 1, c);
+        lcd_fill(cx - b, cy + s * a - b, 2 * b + 1, 1, c);
+    }
+}
+
+void splash(void)
+{
+    lcd_fill(0, 0, LCD_W, LCD_H, BG);
+    snowflake(56, 72, 30, ACCENT);
+    snowflake(56, 72, 12, TITLE_FG);
+    lcd_text_clip_x(104, 40, "FROST", LCD_W, TITLE_FG, BG, 3);
+    lcd_text(108, 92, "custom firmware for ECHO MINI", DIM, BG);
+    lcd_text(108, 110, "v" FW_VERSION ", on newfw " NEWFW_BASE, DIM, BG);
+}
+
+void about_screen(void)
+{
+    splash();
+    lcd_text(4, 136, "PLAY held, BACK held, VOL+ then VOL-:", FG, BG);
+    lcd_text(4, 152, "see Buttons. Any key: back", DIM, BG);
+    for (;;) {
+        sys_idle();
+        ui_background();
+        struct key_ev e;
+        if (key_poll(&e) == EV_PRESS)
+            return;
+        cpu_wait();
     }
 }

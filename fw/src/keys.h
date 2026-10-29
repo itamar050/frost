@@ -23,6 +23,7 @@ int key_held(void);             /* a key is down, as key_poll() sees it */
 uint32_t key_held_us(void);     /* since the key held (or the last change) */
 int key_is_vol(int k);          /* VOL+ or VOL- */
 const char *key_name(int k);
+int key_plug(int src);          /* FROST: SRC_* in (1) or out (0) */
 
 /* Simple screens (system, installer): the key newly down, once, else KEY_NONE */
 int key_edge(void);

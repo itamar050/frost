@@ -50,6 +50,36 @@ def parse(path):
     return glyphs, asc, desc
 
 
+def extra_glyphs(path):  # noqa: C901
+    """FROST: glyphs drawn as text (font/frost-hebrew.txt): "U+XXXX yoff", then rows of '#'/'.'"""
+    out, cur = {}, None
+
+    def done():
+        if cur and cur["art"]:
+            w = max(len(r) for r in cur["art"])
+            h = len(cur["art"])
+            rows = []
+            for r in cur["art"]:
+                v = 0
+                for i, ch in enumerate(r.ljust(w, ".")):
+                    if ch == "#":
+                        v |= 0x80 >> (i % 8) << (8 * ((w + 7) // 8 - 1 - i // 8))
+                rows.append(v.to_bytes((w + 7) // 8, "big"))
+            out[cur["cp"]] = {"cp": cur["cp"], "adv": w + 2, "bbx": (w, h, 1, cur["yoff"]), "rows": rows}
+    for line in open(path, encoding="utf-8"):
+        line = line.rstrip("\n")
+        if line.startswith("#") and not set(line) <= set("#."):
+            continue
+        if line.startswith("U+"):
+            done()
+            cp, yoff = line.split()
+            cur = {"cp": int(cp[2:], 16), "yoff": int(yoff), "art": []}
+        elif cur is not None and line and set(line) <= set("#."):
+            cur["art"].append(line)
+    done()
+    return out
+
+
 def record(g):
     w, h, xo, yo = g["bbx"]
     bpr = (w + 7) // 8
@@ -62,7 +92,16 @@ def record(g):
 
 
 def main():
+    args = sys.argv[1:]
+    extra = None
+    if "--extra" in args:
+        i = args.index("--extra")
+        extra = args[i + 1]
+        del args[i:i + 2]
+    sys.argv[1:] = args
     glyphs, asc, desc = parse(sys.argv[1])
+    if extra:
+        glyphs.update(extra_glyphs(extra))
     cps = sorted(glyphs)
     recs, offs = bytearray(), []
     for c in cps:

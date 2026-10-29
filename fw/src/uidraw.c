@@ -32,7 +32,7 @@ void progress_bar(int y, int h, uint32_t pos, uint32_t len)
 {
     int w = bar_x(pos, len);
     lcd_fill(4, y, w, h, BAR_FG);
-    lcd_fill(4 + w, y, LCD_W - 8 - w, h, RGB(40, 40, 50));
+    lcd_fill(4 + w, y, LCD_W - 8 - w, h, BAR_BG);
 }
 
 /* Text right-aligned at x1 in [x0, x1) of a line: the band left of it filled with bg, each pixel
@@ -102,8 +102,8 @@ void list_scrollbar(int y, int rows, int top, int n)
     int ty = (int)((int64_t)room * top / (n - rows));
     /* the gap before it: rows drawn full width before (a list that fitted) leave their colour */
     lcd_fill(LCD_W - SB_W - SB_GAP, y, SB_GAP, h, BG);
-    lcd_fill(LCD_W - SB_W, y, SB_W, ty, RGB(40, 40, 50));
+    lcd_fill(LCD_W - SB_W, y, SB_W, ty, BAR_BG);
     lcd_fill(LCD_W - SB_W, y + ty, SB_W, t, BAR_FG);
-    lcd_fill(LCD_W - SB_W, y + ty + t, SB_W, h - ty - t, RGB(40, 40, 50));
+    lcd_fill(LCD_W - SB_W, y + ty + t, SB_W, h - ty - t, BAR_BG);
 }
 
