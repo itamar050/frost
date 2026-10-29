@@ -34,6 +34,8 @@ static const char *codec_name(uint32_t c)
 #define TX1    234
 #define TZ_Y   131
 #define TAPE_Y (WN_Y1 - 2)                      /* the tape runs along the window's foot */
+#define GUIDE_L (LB_X0 + 8)                     /* its guides, in the window's lower corners */
+#define GUIDE_R (LB_X1 - 9)
 
 /* ---- level meters, in the trapezoid ---- */
 #define VU_X0   (TX0 - 4)
@@ -176,7 +178,7 @@ static void battery_icon(int x, int y, unsigned pct)
 static void status_line(void)
 {
     char b[64], *p;
-    static const uint32_t mode_glyph[MODE_COUNT] = { 0, 0x21bb, 0x2460, 0x21c4 };
+    static const uint32_t mode_glyph[MODE_COUNT] = { 0, 0x21bb, 0x2460, 0x21c4, 0x21c9 };
     uint32_t st = !q_playing || audio_paused ? (parked || audio_paused ? 0x2016 : 0x25a0) : 0x25b6;
     int x = LB_X0 + 4;
     x += lcd_glyph(x, SL_Y, st, TITLE_FG, BG);
@@ -196,8 +198,12 @@ static void status_line(void)
         lcd_fill(x, SL_Y, bw, 2, BG);
         lcd_fill(x, SL_Y + 14, bw, 2, BG);
         x += bw + 4;
-    } else if (play_mode)
+    } else if (play_mode) {                     /* the mode: its sign and a word */
+        static const char *const mode_word[MODE_COUNT] = { "", "all", "one", "mix", "folders" };
         x += lcd_glyph(x, SL_Y, mode_glyph[play_mode], ACCENT, BG);
+        x = lcd_text(x, SL_Y, mode_word[play_mode], DIM, BG);
+        x = lcd_text(x, SL_Y, " ", DIM, BG);
+    }
     if (sleep_set) {                            /* the sleep timer: a moon, the minutes left */
         x += lcd_glyph(x, SL_Y, 0x263e, ACCENT, BG);
         p = b;
@@ -378,21 +384,19 @@ static void reels(int force)
         if (force || (r16[i] >> 2) != (cs_r16[i] >> 2)) {      /* the pack: a quarter pixel */
             int x0 = cx[i] - RMAX - 2;
             reel_draw(cx[i], x0, RY - RMAX - 2, REEL_T, REEL_T, r16[i]);
-            /* below the tile, then the tape: down from the side of the pack, then along the
-             * window's foot to its guide */
-            int tx = cx[i] + (i ? -(r16[i] + 8) / 16 : (r16[i] + 8) / 16);
-            int gx = i ? RR - RMAX - 4 : RL + RMAX + 4;
-            uint16_t row[REEL_T + 8];
-            for (int y = RY + RMAX + 2; y <= TAPE_Y; y++) {
-                int xa = i ? gx + 3 : x0, xb = i ? x0 + REEL_T : gx - 3;   /* (the guide kept) */
-                for (int x = xa; x < xb; x++)
-                    row[x - xa] = glass(x, y);
-                lcd_blit(xa, y, xb - xa, 1, row);
+            /* below the tile cleared, then the tape: it leaves each pack on its outer side
+             * (the left reel's left, the right reel's right) and goes down to the run along
+             * the window's foot, as on a real cassette */
+            int tx = cx[i] + (i ? (r16[i] + 8) / 16 : -(r16[i] + 8) / 16);
+            uint16_t row[REEL_T];
+            for (int y = RY + RMAX + 2; y < TAPE_Y; y++) {
+                for (int x = x0; x < x0 + REEL_T; x++)
+                    row[x - x0] = glass(x, y);
+                lcd_blit(x0, y, REEL_T, 1, row);
             }
             for (int y = RY; y < TAPE_Y; y++)
                 if ((tx - cx[i]) * (tx - cx[i]) * 256 + (y - RY) * (y - RY) * 256 > r16[i] * r16[i])
                     lcd_fill(tx, y, 1, 1, tape_color());
-            lcd_fill(i ? gx + 3 : tx, TAPE_Y, i ? tx - gx - 2 : gx - 3 - tx, 1, tape_color());
             cs_r16[i] = r16[i];
             cs_hub[i] = cs_angle;
         }
@@ -493,10 +497,10 @@ static void cassette(void)
         lcd_blit(x2, y, x3 - x2, 1, row);
     }
     lcd_fill(TX0 - 2, WN_Y0 + 1, TX1 - TX0 + 4, WN_Y1 - WN_Y0 - 2, BG);
-    /* the guides at the window's foot, the tape run between them */
-    aa_disc(RL + RMAX + 4, TAPE_Y, 2 * 16, DIM, glass);
-    aa_disc(RR - RMAX - 4, TAPE_Y, 2 * 16, DIM, glass);
-    lcd_fill(RL + RMAX + 4, TAPE_Y, RR - RL - 2 * RMAX - 8, 1, tape_color());
+    /* the guides in the window's lower corners, the tape run between them (under both reels) */
+    lcd_fill(GUIDE_L, TAPE_Y, GUIDE_R - GUIDE_L, 1, tape_color());
+    aa_disc(GUIDE_L, TAPE_Y, 2 * 16, DIM, glass);
+    aa_disc(GUIDE_R, TAPE_Y, 2 * 16, DIM, glass);
     /* the bottom of the shell: a trapezoid, its slanted edges smoothed, two holes */
     for (int y = TZ_Y; y < LCD_H; y++) {
         int e16 = 56 * 16 - (y - TZ_Y) * 8;     /* the left edge, 1/16 px */
@@ -648,6 +652,9 @@ void draw_playing(int full)
         if (nx >= 0 && nx != q_cur) {
             int x = lcd_glyph(80, 150, 0x2192, ACCENT, BG) + 82;
             lcd_text_clip(x, 150, q_name(nx), LCD_W - 80, DIM, BG);
+        } else if (nx < 0 && play_mode == MODE_FOLDERS) {   /* the end of this folder */
+            int x = lcd_glyph(80, 150, 0x21c9, ACCENT, BG) + 82;
+            lcd_text_clip(x, 150, "the next folder", LCD_W - 80, DIM, BG);
         }
     }
     if (sk_on) {                                /* the target, how far */
@@ -742,6 +749,11 @@ int play_action(int a, int repeat)
         int n = q_next_index(q_cur, 1);
         if (n >= 0)
             play_index(n);
+        else if (play_mode == MODE_FOLDERS && (q_playing || parked) && q_next_folder() == 0) {
+            parked = 0;                         /* FROST: on to the next folder */
+            play_index(0);
+            return UI_QUICK | UI_FULL;
+        }
         else if (q_n && (q_playing || parked)) {
             play_stop(STOP_NOW);                /* past the end of the queue: stopped there, */
             parked = 0;                         /* PLAY plays the last track from its start */

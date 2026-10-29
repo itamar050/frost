@@ -53,11 +53,11 @@ SECTIONS
     /* The play queue's listing, 32 KiB above the code, and the directory listing, 96 KiB up to the loader's
      * data and stack and over them (dead once we run): not loaded, not cleared (ETUDE §25) */
     /* FROST: the queue's listing grew to 64 KiB (as many entries as the browser's): the code
-     * and its data copy must end before 0x03068000 */
-    .queuebuf 0x03068000 (NOLOAD) : {
+     * and its data copy must end before 0x0306a000 */
+    .queuebuf 0x0306a000 (NOLOAD) : {
         KEEP(*(.queuebuf))
     }
-    ASSERT(SIZEOF(.queuebuf) <= 0x10000, "play queue larger than 64 KiB")
+    ASSERT(SIZEOF(.queuebuf) <= 0xe000, "play queue larger than 56 KiB")
     .dirbuf 0x03078000 (NOLOAD) : {
         KEEP(*(.dirbuf))
     }
@@ -68,7 +68,7 @@ SECTIONS
         KEEP(*(.pmusram))
     }
     ASSERT(SIZEOF(.pmusram) <= 0xc000, "queue folders reach the log ring (0x0309c000)")
-    ASSERT(_sidata + SIZEOF(.data) <= 0x03068000, "code reaches the play queue (0x03068000)")
+    ASSERT(_sidata + SIZEOF(.data) <= 0x0306a000, "code reaches the play queue (0x0306a000)")
 
     /DISCARD/ : { *(.ARM.exidx*) *(.ARM.attributes) *(.comment) }
 }

@@ -312,6 +312,11 @@ void ui_background(void)
         if (++q_errors > 8)
             break;
     }
+    if (!err && play_mode == MODE_FOLDERS && q_next_folder() == 0) {
+        q_dec = 0;                              /* FROST: on into the next folder, gapless */
+        if (q_open(q_dec, 1) == 0)
+            return;
+    }
     if (err)                                    /* the queue stops on a failure: said */
         play_failed(q_name(first), err);
     draining = 1;                               /* end of the queue: followed from the loop */

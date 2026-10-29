@@ -10,6 +10,7 @@
 int q_n, q_cur = -1, q_playing, q_errors;
 struct fat_dir q_root;                          /* FROST: the queue's folder, or tree's top */
 int q_tree;
+static void qp_from_path(int d, const struct fat_dir *extra, const char *xname);
 int q_dec;                                      /* the track core B decodes; q_cur: the one heard */
 char q_folder[64];
 
@@ -42,7 +43,7 @@ static void qd_set_count(int f, uint32_t n)
 /* The queue's listing: one folder at a time (FROST: as many entries as the browser's, so that a
  * folder is held whole, or windowed, in both; names cut shorter) */
 #define QL_MAX   LIST_MAX
-#define QL_NAME  48
+#define QL_NAME  40                             /* (FROST 1.0b: 40, room for the code) */
 static struct {
     struct entry e[QL_MAX];
     uint16_t order[QL_MAX];
@@ -245,7 +246,7 @@ int q_next_index(int i, int user)        /* the track after i, or -1: end of the
     }
     if (i + 1 < q_n)
         return i + 1;
-    return play_mode == MODE_ORDER ? -1 : 0;
+    return play_mode == MODE_ORDER || play_mode == MODE_FOLDERS ? -1 : 0;
 }
 
 int q_prev_index(int i)                  /* the track before i (BACK), or -1 */
@@ -303,6 +304,7 @@ void q_from_dir(int start)
     q_done(path[depth].name, t0);
     q_root = path[depth].dir;
     q_tree = 0;
+    qp_from_path(depth, 0, 0);
     if (ql.windowed) {                          /* a big folder: the same order in both */
         q_cur = start >= (int)ql.dirs ? start - (int)ql.dirs : 0;
         if (q_cur >= q_n)
@@ -366,6 +368,7 @@ void q_from_tree(const struct fat_dir *top, const char *name)
     ql.quiet = 1;
     q_root = *top;
     q_tree = 1;
+    qp_from_path(depth, top, name);
     if (lost)
         log_printf("ui: %d folders left out (%d at most)", lost, Q_DIRS);
     q_done(name, t0);
@@ -401,6 +404,137 @@ void q_resort(void)
         }
 }
 
+/* ---- FROST: the folders from the volume's root to the queue's, for "all folders" ---- */
+#define QP_NAME 48
+static struct fat_dir qp[DEPTH_MAX];
+static char qp_name[DEPTH_MAX][QP_NAME];
+static int qp_n;                                /* qp[0] the root ... qp[qp_n - 1] q_root; 0: unknown */
+
+static void qp_from_path(int d, const struct fat_dir *extra, const char *xname)
+{
+    qp_n = 0;
+    for (int i = 1; i <= d && qp_n < DEPTH_MAX; i++) {
+        qp[qp_n] = path[i].dir;
+        copy_name(qp_name[qp_n++], path[i].name, QP_NAME);
+    }
+    if (extra && qp_n < DEPTH_MAX) {
+        qp[qp_n] = *extra;
+        copy_name(qp_name[qp_n++], xname, QP_NAME);
+    }
+    if (!qp_n || qp[qp_n - 1].cluster != q_root.cluster || qp[qp_n - 1].vol != q_root.vol)
+        qp_n = 0;                               /* not the browser's: found when needed */
+}
+
+static int same_d(const struct fat_dir *a, const struct fat_dir *b)
+{
+    return a->cluster == b->cluster && a->vol == b->vol;
+}
+
+/* Folder d listed into ql: its subfolders (ql.dirs, the first window) and files */
+static int qp_list(const struct fat_dir *d)
+{
+    ql_dir = -1;                                /* (ql is the queue's: built again after) */
+    return list_load(&ql, d);
+}
+
+/* The chain to q_root when the browser did not give it (after a resume): a search from the
+ * volume's root, depth first, at most 3000 folders */
+static int qp_search(void)
+{
+    struct fat_dir root;
+    fat_root(q_root.vol, &root);
+    qp[0] = root;
+    copy_name(qp_name[0], q_root.vol == FAT_VOL_SD ? "SD card" : "Internal", QP_NAME);
+    qp_n = 1;
+    if (same_d(&root, &q_root))
+        return 0;
+    int idx[DEPTH_MAX] = { 0 }, steps = 0;
+    while (qp_n > 0 && steps++ < 3000) {
+        if (qp_list(&qp[qp_n - 1]) < 0)
+            return -1;
+        int k = idx[qp_n - 1];
+        if (k >= (int)ql.dirs || k >= ql.n || qp_n >= DEPTH_MAX) {
+            qp_n--;                             /* this level done: the next one above */
+            if (qp_n > 0)
+                idx[qp_n - 1]++;
+            continue;
+        }
+        const struct entry *e = &ql.e[ql.order[k]];
+        dir_of_entry(e, &qp[qp_n]);
+        copy_name(qp_name[qp_n], ql.pool + e->name, QP_NAME);
+        idx[qp_n] = 0;
+        qp_n++;
+        if (same_d(&qp[qp_n - 1], &q_root))
+            return 0;
+    }
+    qp_n = 0;
+    return -1;
+}
+
+int q_next_folder(void)
+{
+    uint32_t t0 = ticks();
+    if (!q_n || ql_busy)
+        return -1;
+    if (!qp_n && qp_search())
+        return -1;
+    ql_busy = 1;
+    int down = 1, steps = 0, found = 0;         /* down: the current folder's subfolders first */
+    while (steps++ < 2000 && !found) {
+        struct fat_dir *cur = &qp[qp_n - 1];
+        if (down) {
+            if (qp_list(cur) < 0)
+                break;
+            if (ql.dirs && ql.n && qp_n < DEPTH_MAX) {
+                const struct entry *e = &ql.e[ql.order[0]];
+                dir_of_entry(e, &qp[qp_n]);
+                copy_name(qp_name[qp_n], ql.pool + e->name, QP_NAME);
+                qp_n++;
+                if (qp_list(&qp[qp_n - 1]) >= 0 && ql.total > ql.dirs)
+                    found = 1;                  /* it has tracks */
+                continue;
+            }
+            down = 0;
+            continue;
+        }
+        if (qp_n == 1) {                        /* past the last folder: the top again */
+            if (qp_list(cur) >= 0 && ql.total > ql.dirs)
+                found = 1;
+            else
+                down = 1;
+            continue;
+        }
+        if (qp_list(&qp[qp_n - 2]) < 0)
+            break;
+        int k = -1;                             /* cur among its parent's subfolders */
+        for (int i = 0; i < (int)ql.dirs && i < ql.n; i++) {
+            struct fat_dir d;
+            dir_of_entry(&ql.e[ql.order[i]], &d);
+            if (same_d(&d, cur))
+                k = i;
+        }
+        if (k >= 0 && k + 1 < (int)ql.dirs && k + 1 < ql.n) {
+            const struct entry *e = &ql.e[ql.order[k + 1]];
+            dir_of_entry(e, cur);
+            copy_name(qp_name[qp_n - 1], ql.pool + e->name, QP_NAME);
+            if (qp_list(cur) >= 0 && ql.total > ql.dirs)
+                found = 1;
+            else
+                down = 1;
+        } else
+            qp_n--;                             /* the last one here: on from its parent */
+    }
+    ql_busy = 0;
+    if (!found)
+        return -1;
+    struct fat_dir d = qp[qp_n - 1];
+    int keep = qp_n;
+    q_from_folder(&d, qp_name[qp_n - 1], 0);
+    qp_n = keep;                                /* (q_from_folder does not touch the chain) */
+    log_printf("ui: all folders: on to %s, %d tracks, %u ms", q_folder, q_n, (ticks() - t0) / 1000);
+    return q_n ? 0 : -1;
+}
+
 /* FROST: the playable files of folder d (a bookmark, the resume), from the track whose first
  * cluster is 'cluster' (0, or not found: the first) */
 void q_from_folder(const struct fat_dir *d, const char *name, uint32_t cluster)
@@ -415,6 +549,7 @@ void q_from_folder(const struct fat_dir *d, const char *name, uint32_t cluster)
     q_root = *d;
     q_tree = 0;
     q_cur = 0;
+    qp_n = 0;                                   /* the chain: found when needed */
     for (uint32_t k = 0; cluster && k < (uint32_t)q_n; k++) {
         const struct entry *e = ql_track(0, k);
         if (e && e->cluster == cluster) {

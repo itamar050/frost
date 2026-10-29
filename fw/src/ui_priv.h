@@ -127,7 +127,10 @@ void browser_home(void);
 extern int q_n, q_cur, q_playing, q_errors;
 extern char q_folder[64];                       /* the folder played (its name) */
 extern int q_dec;                               /* the track core B decodes; q_cur: the one heard */
-enum { MODE_ORDER, MODE_REPEAT_ALL, MODE_REPEAT_ONE, MODE_SHUFFLE, MODE_COUNT };
+enum { MODE_ORDER, MODE_REPEAT_ALL, MODE_REPEAT_ONE, MODE_SHUFFLE, MODE_FOLDERS, MODE_COUNT };
+/* FROST: MODE_FOLDERS, "all folders": at the end of the queue, the next folder with tracks (its
+ * subfolders first, then the next one beside it, then up; after the last, from the top again) */
+int q_next_folder(void);                        /* 0: the queue is now the next folder's */
 extern int play_mode;
 extern uint32_t rnd;
 int q_next_index(int i, int user);              /* the track after i, or -1: end of the queue */

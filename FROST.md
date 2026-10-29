@@ -83,7 +83,9 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
     reflection, the shell is lit from above, and the screws and bottom holes are rounded.
   - **The window:** two reels turn while music plays. The tape winds from the left reel onto the
     right one with its area kept, so the left reel empties down to its bare hub by the end of
-    the song while the right one fills. Their tape packs shrink on the left and
+    the song while the right one fills. The tape leaves each reel on its outer side (the left
+    reel's left, the right reel's right), goes down to the guides in the window's lower
+    corners, and runs along the bottom between them. Their tape packs shrink on the left and
     grow on the right as the track goes on. Between the reels you see the title, artist, album
     (long lines scroll) and the time.
   - **Under the window:** the progress bar, the format and the volume.
@@ -145,6 +147,25 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
 - **Not supported:** Audible files (.aa/.aax), which are DRM-protected.
 - **Not supported:** chapters stored only as a QuickTime chapter track. Most tools also write
   the "chpl" list.
+
+### Play modes
+BACK held on the play screen cycles through the modes. The status line shows each one's sign
+and a word:
+
+| Mode | What it does |
+|---|---|
+| in order | the queue once, then stop |
+| ⟳ all | the queue again and again |
+| ① one | the same track |
+| ⇄ mix | every track once in a random order, then another order |
+| ⇉ folders | at the end of the folder, on to the next folder that has tracks, without a gap |
+
+How "folders" picks the next folder:
+- the current folder's subfolders come first, then the next folder beside it, then up a level;
+- after the last folder of the storage it starts from the top again;
+- folders without tracks are skipped;
+- PLAY held on the last track jumps to the next folder at once;
+- the bottom line shows "⇉ the next folder" when it is about to move on.
 
 ### Tags and order
 - **Tags read:** title, artist, album, track and disc number, and ReplayGain.
