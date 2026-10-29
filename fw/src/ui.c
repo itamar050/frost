@@ -338,11 +338,13 @@ void ui_main(void)
             }
             ev = EV_NONE;
         }
-        if (ev != EV_NONE && sys_screen_is_off()) {
-            ev = EV_NONE;                       /* FROST: the screen off, the keys do nothing */
-        } else if (ev != EV_NONE) {             /* (only Power switches it on: pocket-safe) */
+        if (ev != EV_NONE) {
+            /* FROST: only Power switches the screen on; with it off, the keys still work
+             * (volume, pause, next...) and the screen stays off */
             t_key = ticks();
             key_ms = millis();
+            if (sys_screen_is_off() && clock_is_low)
+                clock_low(0);                   /* the PLL back before acting (core B, audio) */
         } else if (!sys_screen_is_off() && ticks() - t_key > SCREEN_TIMEOUT_US)
             sys_screen_set(0);
         if (sk_on && (millis() - sk_key_ms > SEEK_IDLE_MS || sk_cur != q_cur ||
