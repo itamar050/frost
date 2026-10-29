@@ -44,11 +44,13 @@ static void qd_set_count(int f, uint32_t n)
 static struct {
     struct entry e[QL_MAX];
     uint16_t order[QL_MAX];
+    uint16_t key[QL_MAX];
     char pool[QL_MAX * (QL_NAME + 1)];
 } ql_buf __attribute__((section(".queuebuf")));
 static struct listing ql = { .e = ql_buf.e, .order = ql_buf.order, .pool = ql_buf.pool,
                              .max = QL_MAX, .pool_size = sizeof ql_buf.pool, .skip_empty = 1,
-                             .quiet = 1, .name_keep = QL_NAME };
+                             .quiet = 1, .name_keep = QL_NAME,
+                             .key = ql_buf.key };
 static int ql_dir = -1;                         /* the qd[] in ql, -1: none */
 static int ql_busy;
 
@@ -362,4 +364,33 @@ void q_from_tree(const struct fat_dir *top, const char *name)
         log_printf("ui: %d folders left out (%d at most)", lost, Q_DIRS);
     q_done(name, t0);
     q_cur = 0;
+}
+
+/* FROST: the order changed (Sort files): the queue's folder read again when next needed */
+void q_resort(void)
+{
+    if (!q_n || q_cur < 0 || q_cur >= q_n) {
+        ql_dir = -1;
+        slots_clear();
+        return;
+    }
+    const struct entry *e = q_ent(q_cur);       /* the track heard keeps its place */
+    uint32_t cl = e ? e->cluster : 0, base = 0;
+    int f = 0, same = q_dec == q_cur;
+    uint32_t k = (uint32_t)q_cur;
+    while (f < qd_n && k >= qd_count(f)) {
+        k -= qd_count(f);
+        base += qd_count(f++);
+    }
+    ql_dir = -1;
+    slots_clear();
+    if (!cl || f >= qd_n || ql_load(f))
+        return;
+    for (int i = (int)ql.dirs; i < ql.n; i++)
+        if (ql.e[ql.order[i]].cluster == cl) {
+            q_cur = (int)base + i - (int)ql.dirs;
+            if (same)
+                q_dec = q_cur;
+            return;
+        }
 }

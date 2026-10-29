@@ -75,7 +75,8 @@ static uint32_t codec_of(const char *name)
 /* ---- directory listings: the folder shown (in .dirbuf), and the queue's (queue.c) ---- */
 static struct dir_buf dir __attribute__((section(".dirbuf")));
 struct listing dir_l = { .e = dir.e, .order = dir.order, .pool = dir.pool, .max = DIR_MAX,
-                         .pool_size = sizeof dir.pool, .name_keep = NAME_KEEP };
+                         .pool_size = sizeof dir.pool, .name_keep = NAME_KEEP, .key = dir.key };
+int sort_by_tag;
 int dir_n;
 
 static const struct entry no_entry;             /* an entry that could not be read */
@@ -170,6 +171,8 @@ static int before(const struct listing *l, int a, int b)     /* entries a, b by 
     int da = l->e[a].flags & F_DIR, db = l->e[b].flags & F_DIR;
     if (da != db)
         return da > db;
+    if (l->by_tag && !da && l->key[a] != l->key[b])
+        return l->key[a] < l->key[b];           /* FROST: disc and track, untagged after */
     return name_cmp(l->pool + l->e[a].name, l->pool + l->e[b].name) < 0;
 }
 
@@ -222,12 +225,36 @@ int list_load(struct listing *l, const struct fat_dir *d)
     l->used = 0;
     l->base = 0;
     l->windowed = 0;
+    l->by_tag = 0;
     l->dir = *d;
     if (d->vol == FAT_VOL_SD && sd_open())
         return -1;
     struct walk wk = { l, 1, 0, 0, 0, 0 };
     int r = fat_list(d, collect, &wk);
     if (!l->full && wk.dirs + wk.files <= l->max) {
+        l->by_tag = 0;
+        if (sort_by_tag && l->key && wk.files && wk.files <= TAG_SORT_MAX) {
+            uint32_t t0 = ticks();              /* FROST: the files' tags read for the order */
+            for (int k = 0; k < l->n; k++) {
+                const struct entry *e = &l->e[k];
+                l->key[k] = TAGS_NO_ORDER;
+                if ((e->flags & F_DIR) || !e->size)
+                    continue;
+                struct fat_file f;
+                f.name[0] = 0;
+                f.vol = e->flags & F_SD ? FAT_VOL_SD : FAT_VOL_INT;
+                f.contig = (e->flags & F_CONTIG) != 0;
+                f.cluster = e->cluster;
+                f.size = e->size;
+                fat_open(&f);
+                l->key[k] = tags_order(&f, e->flags & F_CODEC);
+                if (!(k & 7) && !l->quiet)
+                    ui_background();
+            }
+            l->by_tag = 1;
+            log_printf("ui: %u files ordered by their tags in %u ms", wk.files,
+                       (ticks() - t0) / 1000);
+        }
         list_sort(l);
         l->dirs = wk.dirs;
         l->total = (uint32_t)l->n;

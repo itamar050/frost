@@ -75,6 +75,29 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
 - An "up next" line, a coloured dot for each file showing its format, an accent bar on the
   selected row, and a boot splash.
 
+### Tags and order
+- **Tags read:** title, artist, album, track and disc number, and ReplayGain.
+  - MP3: ID3v2.2–2.4, falling back to ID3v1.
+  - FLAC, Ogg and Opus: Vorbis comments.
+  - M4A: iTunes tags.
+  - MPC and APE: APEv2.
+  - DSF: its ID3 tag.
+- **Hebrew in old tags** (Main menu → Tag text). Many Israeli MP3s store Hebrew in Windows-1255
+  while the tag says Latin-1, which shows as "ùéø". On **auto**, an 8-bit text is read as Hebrew
+  when it holds at least three Hebrew-range letters, or two with no Latin letters. Accented
+  Latin titles such as "Café crème" stay as they are.
+  - "Hebrew" or "Latin-1" forces one or the other.
+  - Hebrew vowel points (niqqud) are dropped.
+- **Sort files** (Main menu → Sort files: by name / by track number). With "by track number",
+  the files of a folder of up to 250 files are ordered by disc, then track, from their tags.
+  - Files without a track number come after, by name; folders stay first, by name.
+  - The play queue follows the same order.
+  - Bigger folders keep the name order: reading every tag takes time, and the queue reads
+    its folder again while music plays.
+- **FAT Sorter:** for folders of up to 1,000 entries, FROST sorts by itself, so FAT Sorter
+  changes nothing there. For bigger folders, which are shown in the order on the card, run
+  FAT Sorter with natural order and ignore case (`fatsort -n -c`) so the order matches.
+
 ### Hebrew and right-to-left text
 - Hebrew letters were added to the font (all 22 letters and the 5 final forms, plus geresh,
   gershayim and maqaf).

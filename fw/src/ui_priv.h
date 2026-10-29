@@ -61,6 +61,7 @@ struct entry {
 struct dir_buf {
     struct entry e[DIR_MAX];
     uint16_t order[DIR_MAX];
+    uint16_t key[DIR_MAX];                      /* FROST: the order by tags (tags.h) */
     char pool[DIR_MAX * (NAME_KEEP + 1)];
 };
 /* A folder listing on a buffer of its own: the folder shown (browser.c), the queue's (queue.c) */
@@ -78,7 +79,14 @@ struct listing {
     uint32_t base;                              /* the folder's entry at order[0] */
     uint32_t total, dirs;                       /* entries of the folder, of which folders */
     struct fat_dir dir;                         /* the folder listed */
+    uint16_t *key;                              /* FROST: e's order by tags, or 0 */
+    int by_tag;                                 /* the files sorted by their tags */
 };
+/* FROST: "Sort files: by track number": the files of a folder of up to TAG_SORT_MAX files
+ * sorted by disc and track number from their tags (those without after, by name); the
+ * folders, and bigger folders, by name */
+#define TAG_SORT_MAX 250
+extern int sort_by_tag;
 int list_load(struct listing *l, const struct fat_dir *d);
 /* Entry 'ord' of the folder (folders first): its place in l->order, the window moved there when
  * needed; -1 when it cannot be read */
@@ -127,6 +135,7 @@ void q_shuffle_new(void);                       /* another shuffled order */
 void q_from_dir(int start);
 void q_from_tree(const struct fat_dir *top, const char *name);
 void q_clear(void);
+void q_resort(void);                            /* FROST: Sort files changed */
 int q_on_sd(void);                              /* the queue is on the card */
 /* Track i: its entry and name (read again from its folder when needed; 0 / "" if unreadable) */
 const struct entry *q_ent(int i);
@@ -174,8 +183,8 @@ extern int jack_out;                            /* FROST: 0 none, 1 3.5 mm, 2 4.
 int seek_key(const struct key_ev *e);
 
 /* ---- menu.c ---- */
-enum { M_FILES, M_PLAYING, M_THEME, M_BUTTONS, M_CLOCK, M_RG, M_USB_RO, M_USB_RW, M_INSTALL,
-       M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
+enum { M_FILES, M_PLAYING, M_THEME, M_BUTTONS, M_SORT, M_TAGCP, M_CLOCK, M_RG, M_USB_RO,
+       M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
 int main_menu(void);
 void clock_screen(void);
 void buttons_screen(void);                      /* FROST: the button map editor */

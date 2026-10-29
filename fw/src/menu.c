@@ -4,7 +4,8 @@
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Theme: ", "Buttons", "Date and time", "ReplayGain: ",
+    "Files", "Now playing", "Theme: ", "Buttons", "Sort files: ", "Tag text: ", "Date and time",
+    "ReplayGain: ",
     "USB disk, read only", "USB disk, read/write", "Install a firmware (.IMG)", "System screen",
     "USB loader mode (exit: RST)", "About FROST",
 };
@@ -29,6 +30,11 @@ int main_menu(void)
                     p = put_str(p, rg_names[rg_mode]);
                 if (i == M_THEME)
                     p = put_str(p, th->name);
+                if (i == M_SORT)
+                    p = put_str(p, sort_by_tag ? "by track number" : "by name");
+                if (i == M_TAGCP)
+                    p = put_str(p, tag_cp == TAG_CP_AUTO ? "auto (Hebrew or Latin)" :
+                                   tag_cp == TAG_CP_HEBREW ? "Hebrew (Windows-1255)" : "Latin-1");
                 *p = 0;
                 lcd_text_clip(12, y, b, list_text_end(M_COUNT, ROWS), FG, bg);
             }
@@ -43,7 +49,19 @@ int main_menu(void)
             cpu_wait();
             continue;
         }
-        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_THEME) {
+        if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SORT) {
+            sort_by_tag = !sort_by_tag;         /* the folder shown, and the queue's, again */
+            dir_load(&path[depth].dir);
+            if (path[depth].sel >= dir_n)
+                path[depth].sel = path[depth].top = 0;
+            q_resort();
+            resume_save();
+            dirty = 1;
+        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_TAGCP) {
+            tag_cp = (tag_cp + 1) % TAG_CP_COUNT;   /* the next track read with it */
+            resume_save();
+            dirty = 1;
+        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_THEME) {
             theme_set((theme_index + 1) % THEME_COUNT);     /* seen at once */
             resume_save();
             dirty = 1;

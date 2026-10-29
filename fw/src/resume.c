@@ -68,6 +68,8 @@ void resume_save(void)
     __builtin_memset(x, 0, sizeof *x);
     __builtin_memcpy(x->magic, "FROSTX1", 8);
     x->theme = (uint32_t)theme_index;
+    x->pad[0] = (uint8_t)(sort_by_tag | 0x80);  /* FROST settings (0x80: written) */
+    x->pad[1] = (uint8_t)(tag_cp | 0x80);
     for (int m = 0; m < KM_SCREENS; m++)
         for (int k = 0; k < S_COUNT; k++)
             x->keymap[m][k] = keymap[m][k];
@@ -114,6 +116,10 @@ void resume_load(void)
     int xok = !__builtin_memcmp(x->magic, "FROSTX1", 8) && x->sum == x_sum(x);
     if (xok) {
         theme_set((int)x->theme);
+        if (x->pad[0] & 0x80)
+            sort_by_tag = x->pad[0] & 1;
+        if ((x->pad[1] & 0x80) && (x->pad[1] & 0x7f) < TAG_CP_COUNT)
+            tag_cp = x->pad[1] & 0x7f;
         for (int m = 0; m < KM_SCREENS; m++)
             for (int k = 0; k < S_COUNT; k++)
                 keymap[m][k] = x->keymap[m][k];

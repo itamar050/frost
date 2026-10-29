@@ -53,9 +53,30 @@ static uint32_t syncsafe(const uint8_t *p) { return p[0] << 21 | p[1] << 14 | p[
 
 /* ---- text into a field: UTF-8 out, cut on a character boundary ---- */
 /* enc: 0 Latin-1, 1 UTF-16 with BOM, 2 UTF-16 BE, 3 UTF-8 */
+int tag_cp;
+
+/* Windows-1255 or Latin-1, for an 8-bit text (enc 0) */
+static int is_cp1255(const uint8_t *s, uint32_t n)
+{
+    if (tag_cp != TAG_CP_AUTO)
+        return tag_cp == TAG_CP_HEBREW;
+    uint32_t heb = 0, lat = 0, other = 0;
+    for (uint32_t i = 0; i < n && s[i]; i++) {
+        uint8_t b = s[i];
+        if (b >= 0xe0 && b <= 0xfa)
+            heb++;
+        else if ((b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z'))
+            lat++;
+        else if (b >= 0x80 && b != 0x96 && b != 0x97 && b != 0xa0 && !(b >= 0xc0 && b <= 0xd2))
+            other++;                            /* a Latin-1 letter outside the Hebrew range */
+    }
+    return !other && (heb >= 3 || (heb >= 2 && !lat)) && heb >= lat;
+}
+
 static void set_text(char *d, int max, const uint8_t *s, uint32_t n, int enc)
 {
     int o = 0, be = enc == 2;
+    int heb = enc == 0 && is_cp1255(s, n);
     uint32_t i = 0;
     if (enc == 1 && n >= 2) {
         be = s[0] == 0xfe && s[1] == 0xff;
@@ -63,8 +84,17 @@ static void set_text(char *d, int max, const uint8_t *s, uint32_t n, int enc)
     }
     while (i < n) {
         uint32_t c;
-        if (enc == 0)
+        if (enc == 0) {
             c = s[i++];
+            if (heb) {                          /* Windows-1255: letters, dashes; points dropped */
+                if (c >= 0xe0 && c <= 0xfa)
+                    c = 0x05d0 + (c - 0xe0);
+                else if (c == 0x96 || c == 0x97)
+                    c = c == 0x96 ? 0x2013 : 0x2014;
+                else if (c >= 0xc0 && c <= 0xd2)
+                    continue;
+            }
+        }
         else if (enc == 3) {
             if (!s[i])
                 break;
@@ -233,6 +263,10 @@ static void vorbis_comment(struct tags *t, const uint8_t *s, uint32_t n)
         char v[8];
         set_text(v, sizeof v, s + 12, n - 12, 3);
         t->track = num(v);
+    } else if (key_is(s, n, "DISCNUMBER")) {    /* FROST: for the order by tags */
+        char v[8];
+        set_text(v, sizeof v, s + 11, n - 11, 3);
+        t->disc = num(v);
     } else if ((s[0] | 0x20) == 'r') {
         char key[24], v[24];
         uint32_t k = 0;
@@ -298,11 +332,13 @@ static uint32_t id3v2(struct tags *t, uint32_t base)
             else if (id[0] == 'T' && id[1] == 'P' && id[2] == '1') { dst = t->artist; max = sizeof t->artist; }
             else if (id[0] == 'T' && id[1] == 'A' && id[2] == 'L') { dst = t->album; max = sizeof t->album; }
             else if (id[0] == 'T' && id[1] == 'R' && id[2] == 'K') trk = 1;
+            else if (id[0] == 'T' && id[1] == 'P' && id[2] == 'A') trk = 3;
         } else {
             if (!__builtin_memcmp(id, "TIT2", 4)) { dst = t->title; max = sizeof t->title; }
             else if (!__builtin_memcmp(id, "TPE1", 4)) { dst = t->artist; max = sizeof t->artist; }
             else if (!__builtin_memcmp(id, "TALB", 4)) { dst = t->album; max = sizeof t->album; }
             else if (!__builtin_memcmp(id, "TRCK", 4)) trk = 1;
+            else if (!__builtin_memcmp(id, "TPOS", 4)) trk = 3;
             else if (!__builtin_memcmp(id, "TXXX", 4)) trk = 2;
         }
         /* compressed, encrypted or unsynchronised frames are skipped */
@@ -315,7 +351,10 @@ static uint32_t id3v2(struct tags *t, uint32_t base)
                 else if (trk) {
                     char v[8];
                     set_text(v, sizeof v, d + 1, n - 1, d[0]);
-                    t->track = num(v);
+                    if (trk == 3)
+                        t->disc = num(v);
+                    else
+                        t->track = num(v);
                 } else
                     set_text(dst, max, d + 1, n - 1, d[0]);
             }
@@ -625,7 +664,7 @@ static void mp4(struct tags *t)
         if (c == 0xa96e616d) { dst = t->title; max = sizeof t->title; }         /* ©nam */
         else if (c == 0xa9415254) { dst = t->artist; max = sizeof t->artist; }  /* ©ART */
         else if (c == 0xa9616c62) { dst = t->album; max = sizeof t->album; }    /* ©alb */
-        else if (c != 0x74726b6e && c != 0x2d2d2d2d)                            /* trkn, ---- */
+        else if (c != 0x74726b6e && c != 0x2d2d2d2d && c != 0x6469736b)         /* trkn, ----, disk */
             continue;
         char key[32];
         key[0] = 0;
@@ -645,7 +684,9 @@ static void mp4(struct tags *t)
             char v[32];
             set_text(v, sizeof v, p + 8, n, 3);
             rg_field(t, key, v);
-        } else if (n >= 4)
+        } else if (n >= 4 && c == 0x6469736b)
+            t->disc = be16(p + 10);
+        else if (n >= 4)
             t->track = be16(p + 10);
     }
 }
@@ -688,6 +729,10 @@ static void apev2(struct tags *t)
                 char tv[8];
                 set_text(tv, sizeof tv, v, vlen, 3);
                 t->track = num(tv);
+            } else if (ok && !__builtin_memcmp(kk, "DISC", 5)) {
+                char tv[8];
+                set_text(tv, sizeof tv, v, vlen, 3);
+                t->disc = num(tv);
             } else if (ok) {
                 char val[32];
                 set_text(val, sizeof val, v, vlen, 3);
@@ -702,7 +747,7 @@ static void apev2(struct tags *t)
 void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
 {
     t->title[0] = t->artist[0] = t->album[0] = 0;
-    t->track = 0;
+    t->track = t->disc = 0;
     t->rg_gain[0] = t->rg_gain[1] = RG_NONE;
     t->rg_peak[0] = t->rg_peak[1] = 0;
     t->ogg_end_page = t->ogg_end_seg = 0;
@@ -744,4 +789,15 @@ void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
             }
         }
     }
+}
+
+/* FROST: the order of a file by its tags (the browser's "Sort files: by track") */
+uint16_t tags_order(const struct fat_file *f, uint32_t codec)
+{
+    static struct tags kt;
+    tags_read(f, codec, &kt);
+    if (!kt.track || kt.track > 999)
+        return TAGS_NO_ORDER;
+    uint32_t disc = kt.disc && kt.disc < 64 ? kt.disc : 1;
+    return (uint16_t)(disc * 1000 + kt.track);
 }
