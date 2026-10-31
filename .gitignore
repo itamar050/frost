@@ -11,3 +11,5 @@ __pycache__/
 fw/tools/fuzz/build/
 fw/tools/fuzz/seeds/
 fw/tools/fuzz/out*/
+# device logs
+NEWFWLOG.TXT

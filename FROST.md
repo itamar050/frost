@@ -369,5 +369,5 @@ Slot words: `play` `play_hold` `back` `back_hold` `menu` `menu_hold` `vol_up` `v
   later. FROST changed four things to fit core B's RAM: the noise table is const, the
   quantized coefficients and init_vlc's code list share the IMDCT scratch buffer, and the VLC
   builder's size check follows from that.
-- The other third-party parts keep their licences (see README.md).
+- The other third-party parts keep their licences (see README.newfw.md).
 - The Hebrew glyphs and the DSD converter were written for FROST.

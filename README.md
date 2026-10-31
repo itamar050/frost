@@ -1,89 +1,69 @@
-# ECHO MINI new firmware
+# FROST
 
-[![check](https://github.com/berettavexee/echo-mini-newfw/actions/workflows/check.yml/badge.svg)](https://github.com/berettavexee/echo-mini-newfw/actions/workflows/check.yml)
+**Custom firmware for the SNOWSKY Echo Mini (8 GB).** Version 1.2c.
 
-> The interface is minimalist and rough around the edges; the primary aim is to test codec
-> addition, gapless playback and ReplayGain. These are things I couldn’t do by patching the
-> official firmware.
-> This project should be seen as a test platform that has grown in scope. If you’re looking for
-> a more polished experience, take a look at [Recho](https://recho.atzkey.workers.dev/).
+<p align="center"><img src="docs/promo/flyer.png" alt="FROST flyer: 24 themes, 10-band EQ, bit-perfect playback up to 192 kHz" width="540"></p>
 
-A from-scratch firmware for the main core of the SNOWSKY ECHO MINI digital audio player
-(Rockchip RKNanoD, 8 GB model), with our own decoders on the HiFi core (core B). It is built
-by studying the official firmware V3.9.0; no code of it, of the Rockchip SDK, of ReChord or
-of RECHO is included.
+FROST is a fork of [echo-mini-newfw](https://github.com/berettavexee/echo-mini-newfw) 0.95 by
+berettavexee, a from-scratch firmware for the Rockchip RKNanoD inside the player. It keeps all
+of newfw (its decoders, gapless playback, ReplayGain, resume, USB disk and installer) and adds
+a new interface, more formats and an equalizer.
 
-Status (version 0.89): playback of WAV, AIFF, FLAC, MP3, Ogg Vorbis, Opus, AAC and ALAC (M4A),
-Musepack, gapless,
-at any sample rate from 8 to 192 kHz, with
-non-blocking sample-rate changes; folder browser with long names (FAT32 internal memory,
-FAT32 or exFAT microSD card); resume, ReplayGain (album / track / off), seek on the bar,
-play modes, real-time clock, USB mass storage of the internal memory, power saving in
-pause, low-battery warning and power off, charging screen. No equaliser.
+> **Beta.** Keep a stock firmware image and know the recovery procedure before installing
+> (see [Installing](FROST.md#installing)).
 
-**New users: see [`MANUAL.md`](MANUAL.md)** for the keys on each screen and how to install.
+## Highlights
 
-## Supported formats and core B load
+- **Bit-perfect lossless** playback at native sample rates up to 192 kHz; the volume is set in
+  the two CS43131 DACs, not in the samples.
+- **Formats:** FLAC, WAV, AIFF, ALAC, APE, DSF/DFF up to DSD256 (played as 88.2 kHz/24-bit),
+  MP3, AAC/M4A, Ogg Vorbis, Opus, Musepack, WMA 1/2.
+- **10-band equalizer** (31 Hz to 16 kHz, ±12 dB) with presets: Flat, Rock, Pop, Jazz,
+  Classical, Bass boost, Vocal, Treble and Custom. Fully bypassed when off.
+- **24 themes** and a cassette-style play screen with spinning reels.
+- **Shuffle all music**, plus play modes: in order, repeat all, repeat one, shuffle, folders.
+- **Audiobooks:** bookmarks, m4b chapters, 30-second skips. Sleep timer.
+- **Big libraries:** unlimited files, large folders, fast scrolling and quick jump.
+- **Hebrew and right-to-left text** in names and tags (ID3, Vorbis, APE, MP4, ASF).
+- **Button remapping** on the player or with `KEYMAP.TXT`.
+- 3.5 mm and 4.4 mm balanced outputs, microSD (FAT32/exFAT), USB disk mode.
 
-Our decoders run on the HiFi core (core B), whose clock follows the load in steps of 50, 57, 67,
-80, 100, 133 and 200 MHz (the step that keeps the load near 75 %). Measured on the device from
-the logs (versions 0.73 to 0.93), whole tracks, screen off; since 0.85, parts of the FLAC, MP3,
-Vorbis, AAC and Musepack decoders run on the chip's accelerators (`docs/HIFIACC.md`, `docs/MP3ACC.md`):
+Bluetooth is turned off in this release while it is being worked on.
 
-| Format | Material measured | Core B, mean (clock step) | Decoder |
-|---|---|---|---|
-| WAV, AIFF | 16 bits, 44.1 kHz | 1 MHz (50 MHz) | ours (`codec_pcm.c`) |
-| AIFF | 24 bits, 48 kHz | 8 MHz (50 MHz) | ours |
-| AIFF | 24 bits, 96 kHz | 16 MHz (50 MHz) | ours |
-| FLAC | 16 bits, 44.1 kHz (640-1,050 kb/s) | 9-12 MHz (50 MHz) | dr_flac, LPC prediction on HIFIACC (0.85) |
-| MP3 | 130-320 kb/s, 44.1 kHz | 20-25 MHz (50 MHz) | PacketVideo (AOSP), synthesis on SYNTH (0.87) |
-| Ogg Vorbis | 110-200 kb/s, 44.1 kHz | 29-36 MHz (50 MHz) | Tremor (lowmem), IMDCT on HIFIACC's FFT (0.88) |
-| Opus | 130-145 kb/s, 48 kHz | 50-55 MHz (67-80 MHz) | libopus 1.5.2 |
-| AAC-LC (M4A) | ~125 kb/s, 44.1 kHz (iTunes) | 23 MHz (50 MHz) | PacketVideo (AOSP), IMDCT's FFTs on HIFIACC (0.92) |
-| ALAC (M4A) | 16 bits, 44.1 kHz, mono | 11-13 MHz (50 MHz) | ours, derived from Apple's |
-| ALAC (M4A) | 16 bits, 44.1 kHz, stereo | 21-25 MHz (50 MHz) | ours, derived from Apple's |
-| ALAC (M4A) | 24 bits, 96 kHz, stereo | 49-51 MHz (67-80 MHz) | ours, derived from Apple's |
-| Musepack | SV7 and SV8, ~180 kb/s, 44.1 kHz | 10-11 MHz (50 MHz) | libmpcdec, synthesis on SYNTH (0.93) |
+## Quick install
 
-The load rises for a moment at the start of a track and after a seek (the top step until the
-DAC ring is full). Details and the test conditions: `ETUDE.md` (§52 to §61, accelerators §66 to §77). Sample rates from 8 to
-192 kHz are played as they are (§60).
+1. Copy `HIFIEC70.IMG` to the top folder of the player's disk over USB, then eject.
+2. On the player, hold **MENU** and choose **Install a firmware (.IMG)**.
+3. Wait for it to finish and restart.
 
-## Layout
+The full illustrated guide: [install-guide.pdf](docs/promo/install-guide.pdf)
+([PNG](docs/promo/install-guide.png)). Recovery and the loader route are in
+[FROST.md](FROST.md#installing).
 
-| Path | Content |
+## Documentation
+
+| File | What's in it |
 |---|---|
-| `ETUDE.md` | the study (in French): hardware, boot, cores, codecs, every version and its tests |
-| `MANUAL.md` | user manual: screens, keys, messages, formats, installing |
-| `ROADMAP.md` | what is done, waiting for a test, to do, ideas, known limitations |
-| `fw/src/` | main-core firmware (C) |
-| `fw/hifi/` | HiFi-core runtime and codec glue |
-| `fw/tools/` | image builder, emulator (`emu_fw.py`, Unicorn), test disk and exFAT image builders, log reader |
-| `fw/tools/fuzz/` | fuzzing bench for the decoders and file readers (ASan, UBSan, coverage-guided): see `docs/FUZZING.md` |
-| `docs/` | `FUZZING.md` (the fuzzing bench and its findings), `HIFIACC.md` (the RKNanoD audio accelerator: registers, sequence, pitfalls), `MP3ACC.md` (the SYNTH and Imdct36 MP3 accelerators), screenshots of the manual |
-| `fw/font/` | Fusion Pixel 12 px (SIL OFL 1.1) |
-| `third_party/` | libopus 1.5.2 (decoder-only variant), Tremor lowmem (patched), AOSP pvmp3dec and pvaacdec, Apple ALAC decoder, libmpcdec |
-| `tools/` | reverse-engineering helpers used for the study (they expect the stock image and `re/rknanofw.py` next to this tree) |
+| [FROST.md](FROST.md) | Everything FROST adds, button mapping, installing, building, licences |
+| [MANUAL.md](MANUAL.md) | The keys on each screen (from newfw) |
+| [fw/README.md](fw/README.md) | Building the image and the emulator |
+| [README.newfw.md](README.newfw.md) | The original newfw README: formats, core B load, design |
+| [docs/promo](docs/promo) | Flyer and install guide (PNG and PDF) |
 
-## Build
+## Building
 
-    cd fw && make
+```sh
+make -C fw          # build the image
+make -C fw check    # lint, host tests and a strict build
+```
 
-Needs `arm-none-eabi-gcc` and Python 3. Output: `fw/build/HIFIEC70.IMG`, installed from the
-device's own firmware menu or the loader's USB mode. See `fw/README.md`.
+See [fw/README.md](fw/README.md) for the toolchain.
 
-## Acknowledgments
+## Licences
 
-More ambitious custom firmware projects exist for this player, and are worth a look:
-- **[RECHO](https://recho.atzkey.workers.dev/)** by atzkey: a from-scratch firmware for the ECHO
-  MINI (gapless playback, improved navigation, files in name order).
-- **[ReChord](https://github.com/brnomt/ReChord)**: a from-source custom firmware for the ECHO
-  MINI, in progress.
+newfw's own code has no licence stated in its repository, and all rights stay with its author.
+This repository is private for that reason. Ask the newfw author before redistributing it or
+images built from it. libdemac and libwma (from Rockbox) are GPL v2 or later; the other
+third-party parts keep their own licences. Details: [FROST.md](FROST.md#licences).
 
-This project is independent from both and shares no code with them (but I will be happy to share).
-
-## Licenses
-
-Our code: see the headers. Third-party code keeps its license: libopus (BSD, `third_party/opus/COPYING`),
-Tremor (BSD, `third_party/tremor-lowmem/COPYING`), pvmp3dec (Apache-2.0,
-`third_party/pvmp3dec/NOTICE`, `third_party/pvaacdec/NOTICE`), Apple ALAC decoder (Apache-2.0, `third_party/alac/LICENSE`), libmpcdec (BSD, `third_party/libmpcdec/COPYING`), dr_flac (public domain / MIT-0), Fusion Pixel font (SIL OFL 1.1).
+FROST is community firmware and is not made by or affiliated with SNOWSKY.
