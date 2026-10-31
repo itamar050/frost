@@ -4,6 +4,7 @@
 #include "ui_priv.h"
 
 /* ---- playback ---- */
+int wired_level = -1;                           /* FROST 1.2a: the wired volume while BT plays */
 int play_level = 80;                            /* PCM_VOL: attenuation / 2 dB, start at -40 dB */
 struct tags tg;                                 /* of the track heard */
 static struct tags tg_next;                     /* of the one opened last */

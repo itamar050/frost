@@ -212,7 +212,7 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.1z)
+### Bluetooth (test version, 1.2a)
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.
@@ -236,6 +236,16 @@ How it works, all read from the stock firmware V4.0:
 - It takes the same digital audio signal (I2S) that feeds the DACs.
 - The headphone amplifier is switched off while a device is connected, as the stock firmware
   does.
+
+**1.2a:** the stock firmware has a separate "BT Volume" and sets it in the DACs. That only
+makes sense if the module takes the DACs' analog output, not the digital stream. So while
+connected FROST now:
+
+- drives the DACs at 0 dB (VOL+/VOL- change that Bluetooth level; the wired volume comes back
+  when the headphones disconnect, and is the one saved);
+- uses the stock firmware's output setting (HP_OUT_CTL_1 = 31 instead of 10).
+
+The headphones' buttons arrive as CPOK, CCOK, CAOK and CBOK and now work.
 
 **1.1z, from your device log:** the stock firmware always sends the music to the module as
 32-bit samples. FROST sent 16-bit files (MP3, WMA, CD FLAC) as 16-bit, which the DACs take

@@ -103,9 +103,11 @@ static void set_state(int s)
     log_printf("bt: state %s", bt_state_name());
     if (s == BT_LINKED) {                       /* the music to the module: the amplifier off */
         bt_route_apply();
+        audio_hp_out();
         playing_sent = -1;
     } else if (was == BT_LINKED) {
         gpio_set(2, 14, 1);
+        audio_hp_out();
         bt_name[0] = 0;
         dropped = 1;                            /* the UI stops the music (the DACs are cold) */
     }
@@ -350,7 +352,7 @@ static int frame(const uint8_t *f, int n)
         set_state(BT_READY);
         return 4;
     }
-    if (bt_state == BT_LINKED && !ok && !er) {  /* the headphones' buttons */
+    if (bt_state == BT_LINKED && !er) {         /* the headphones' buttons (CPOK, CAOK...) */
         key = op == 'P' ? BTK_PLAY : op == 'C' ? BTK_PAUSE : op == 'A' ? BTK_NEXT :
               op == 'B' ? BTK_PREV : key;
     }

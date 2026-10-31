@@ -75,7 +75,7 @@ void resume_save(void)
     const struct entry *qe = (q_playing || parked) && q_cur < q_n ? q_ent(q_cur) : 0;
     r->track = qe ? qe->cluster : 0;
     r->playing = (uint32_t)(q_playing && !audio_paused);
-    r->level = (uint32_t)play_level;
+    r->level = (uint32_t)(wired_level >= 0 ? wired_level : play_level);   /* (1.2a) */
     r->mode = (uint32_t)(play_mode | rg_mode << 8);    /* rg_mode 0 (album) before 0.55 */
     r->pos_ms = parked ? parked_ms : q_playing ? player_heard.time_ms : 0;
     r->sum = rs_sum(r);

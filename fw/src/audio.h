@@ -37,6 +37,7 @@ void audio_power_service(void);  /* DACs powered down 10 s into a pause */
 void audio_pause(int on);       /* the DMA waits in place; the volume is kept */
 void audio_flush(void);         /* drops what is queued (a skip) */
 extern int audio_paused;
+void audio_hp_out(void);                /* FROST 1.2a: HP_OUT_CTL_1 for wired or Bluetooth */
 void audio_volume(uint8_t vol, int ramp);   /* both DACs, both channels */
 void audio_update(void);        /* read position and underrun counters only */
 uint32_t audio_free(void);      /* bytes that can be written now (whole 32-bit words) */

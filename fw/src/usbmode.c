@@ -83,8 +83,9 @@ static void usb_mode(int writable)
 #ifdef ECHO_PROBE
     probe_attach(vol.base);                     /* before the host owns the volume */
 #endif
+    usb_start();                                /* FROST 1.2a: logged before the host can */
+    log_printf("usb: controller started, vbus %d", vbus());     /* mount (a freeze: where) */
     log_detach();                               /* the host owns the volume from here */
-    usb_start();
     uint32_t t_draw = 0, t_key = 0, t_eject = 0, t0 = millis(), configured_at = 0;
     const char *why = "?";
     for (;;) {

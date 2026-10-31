@@ -171,6 +171,7 @@ void play_failed(const char *name, int code);
 /* What went wrong and what to do, for the "Cannot play" screen (code: a player error) */
 void fail_text(int code, uint32_t why, const char **what, const char **hint);
 void volume(int d);
+extern int wired_level;
 #ifndef SEEK_IDLE_MS
 #define SEEK_IDLE_MS 2000u
 #endif

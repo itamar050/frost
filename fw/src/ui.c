@@ -332,6 +332,14 @@ void ui_main(void)
             log_printf("ui: Bluetooth: the track again at %u ms in 32-bit frames", at);
             full = 1;
         }
+        if (bt_linked() != bt_was) {            /* 1.2a: a volume of its own while connected: */
+            static int other = 0;               /* the module takes the DACs' line level, */
+            int t = play_level;                 /* 0 dB to start with (VOL changes it) */
+            play_level = other;
+            other = t;
+            wired_level = bt_linked() ? other : -1;     /* (saved instead of the BT one) */
+            volume(0);
+        }
         bt_was = bt_linked();
         int btk = bt_take_key();                /* FROST: the headphones' buttons */
         if ((btk == BTK_PLAY && (!q_playing || audio_paused)) ||

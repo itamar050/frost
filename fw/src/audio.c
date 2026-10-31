@@ -193,7 +193,7 @@ static void dac_setup(void)
         both(block18[i].reg, block18[i].val);   /* undocumented block (both firmwares) */
     both(0x0b0000, 0x1f);
     mdelay(80);
-    both(0x080000, 0x10);                       /* HP_OUT_CTL_1 */
+    both(0x080000, bt_linked() ? 0x31 : 0x10);  /* HP_OUT_CTL_1 (1.2a: the stock 31 for BT) */
     both(0x0d0000, 0x04);                       /* HP_DETECT */
     both(0x0d0001, 0x00);
     read_status("int status 1", 0x0f0000);
@@ -664,6 +664,14 @@ void audio_power_service(void)
 {
     if (audio.on && audio_paused && !standby && ticks() - t_paused > 10000000)
         dac_standby(1);
+}
+
+/* FROST 1.2a: the Bluetooth module listens to the DACs' analog output (the stock firmware gives
+ * it its own volume, set in the DACs): HP_OUT_CTL_1 as the stock firmware's while connected */
+void audio_hp_out(void)
+{
+    if (audio.on && !standby)
+        both(0x080000, bt_linked() ? 0x31 : 0x10);
 }
 
 void audio_pause(int on)
