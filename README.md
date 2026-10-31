@@ -36,7 +36,7 @@ Bluetooth is turned off in this release while it is being worked on.
 2. On the player, hold **MENU** and choose **Install a firmware (.IMG)**.
 3. Wait for it to finish and restart.
 
-The full illustrated guide: [install-guide.pdf](docs/promo/install-guide.pdf)
+The full illustrated guide: [INSTALL.md](INSTALL.md), printable as [install-guide.pdf](docs/promo/install-guide.pdf)
 ([PNG](docs/promo/install-guide.png)). Recovery and the loader route are in
 [FROST.md](FROST.md#installing).
 
