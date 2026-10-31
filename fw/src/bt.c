@@ -29,34 +29,23 @@ const char *bt_error;
 static int variant, key, dropped, playing_sent = -1, want_scan;
 static uint32_t t_state, t_poll, t_try;
 static int tries;
-static char connect_op;                         /* H: a device found, L: the one remembered */
+static char connect_op;
+static uint32_t t_scan;
+static int scan_sends;                          /* CS00 sent: once, again after 12 s quiet */                         /* H: a device found, L: the one remembered */
 
 /* ---- the UART: bytes in by interrupt, a frame burst taken after 4 ms of silence ---- */
 static volatile uint8_t bt_rx[512];
 static volatile uint32_t bt_rx_w, bt_rx_t;
 static uint32_t bt_rx_r;
 
-/* 1.1x: every cause cleared (line status: LSR read; busy: USR read), at most 64 bytes a call,
- * and an interrupt that keeps coming without data switched off: never a storm that would starve
- * the player */
-static uint32_t irq_idle;
-
+/* As 1.1w (which found headphones; 1.1x's LSR-based version did not), at most 64 bytes a call:
+ * the interrupt comes back for the rest */
 void BT_UART_IRQHandler(void)
 {
-    uint32_t iir = REG(U_IIR) & 0xf, got = 0;
-    if (iir == 0x6)
-        (void)REG(U + 0x14);                    /* LSR */
-    if (iir == 0x7)
-        (void)REG(U_USR);
-    while ((REG(U + 0x14) & 1) && got < 64) {   /* LSR data ready */
+    (void)REG(U_IIR);
+    for (int n = 0; n < 64 && (REG(U_USR) & 8); n++)
         bt_rx[bt_rx_w++ & 511] = (uint8_t)REG(U_DATA);
-        got++;
-    }
     bt_rx_t = ticks();
-    if (got)
-        irq_idle = 0;
-    else if (++irq_idle > 1000)
-        REG(U_IER) = 0;                         /* (bt_service sees it: logged, restarted) */
 }
 
 static void uart_init(void)
@@ -192,7 +181,13 @@ void bt_scan(void)
         return;
     bt_nfound = 0;
     bt_error = 0;
-    send('S', '0', '0', 0, 0);
+    if (bt_state == BT_CONNECT) {               /* 1.1y: a reconnection still trying (the */
+        send('T', '0', '0', 0, 0);              /* headphones remembered, off): cancelled */
+        tries = 4;
+    }
+    send('P', '0', '0', 0, 0);                  /* any search stopped */
+    scan_sends = 0;
+    t_scan = millis() - 1500;                   /* CS00 in 500 ms (bt_service) */
     set_state(BT_SCAN);
 }
 
@@ -376,18 +371,18 @@ void bt_service(void)
     }
     if (bt_state == BT_OFF)
         return;
-    if (irq_idle > 1000) {
-        log_printf("bt: UART interrupt storm: module restarted");
-        irq_idle = 0;
-        bt_enable(1);
-        return;
-    }
     if (bt_rx_r != bt_rx_w && ticks() - bt_rx_t > 4000)
         take_burst();
     uint32_t now = millis();
     if (bt_state == BT_BOOT && now - t_state > 6000) {
         bt_error = "the module does not answer";
         set_state(BT_MUTE);
+    }
+    if (bt_state == BT_SCAN && scan_sends < 2 && !bt_nfound &&
+        now - t_scan > (scan_sends ? 12000u : 2000u)) {
+        t_scan = now;
+        scan_sends++;
+        send('S', '0', '0', 0, 0);
     }
     if ((bt_state == BT_SCAN && now - t_state > 30000) ||
         (bt_state == BT_CONNECT && now - t_state > 30000)) {

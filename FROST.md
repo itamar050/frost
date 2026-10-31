@@ -212,7 +212,7 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.1x): pairing works, no sound yet
+### Bluetooth (test version, 1.1y): pairing works, no sound yet
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.

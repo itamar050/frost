@@ -375,6 +375,8 @@ def main():
             bt_say(1500, b"CSEN")
         elif op in (b"H", b"L"):
             dev = [d for d in BT_DEVS if d[0] == f[4:10]]
+            if op == b"L" and opt("--bt-hp-off", None):
+                return                                           # --bt-hp-off: remembered one off
             if opt("--bt-deaf", None) and not btm.get("deaf_done"):
                 btm["deaf_done"] = True                          # --bt-deaf: the first one lost
                 return
