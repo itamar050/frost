@@ -94,6 +94,11 @@ struct hp_ctl {
                                            timeout (ETUDE §67) */
     uint32_t synth_gran, synth_soft;    /* MP3: granules on SYNTH, in software (ETUDE §71) */
     uint32_t why;                       /* B: enum hp_why, with an HP_ERR_* of the open */
+    uint32_t widen;                     /* A, before OPEN (FROST 1.1z): 16-bit output as 32-bit
+                                           frames (sample << 16), as the stock firmware sends the
+                                           I2S: the Bluetooth module takes only that */
+    uint32_t wide;                      /* B, at HP_FORMAT: widened (the ring frames are 8 bytes;
+                                           frame_bytes stays the codec's 4) */
 #if defined(ECHO_HWTEST) || defined(ECHO_HWSYN) || defined(ECHO_FFTCMP)
     /* Test build only (ETUDE §66): HIFIACC's LPC against dr_flac, per track, written by core B
      * and logged by core A at the end of the track */

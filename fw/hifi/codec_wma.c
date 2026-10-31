@@ -258,7 +258,7 @@ int codec_run(void)
             next_superframe();
         return 1;
     }
-    if (out_space() < BLOCK_MAX_SIZE * 2 * 4)
+    if (out_space() < (uint32_t)wma.frame_len * 4)    /* (1.1z: fits the widened ring) */
         return 0;
     int n = wma_decode_superframe_frame(&wma, pay + pay_off, sf_size);
     frame_i++;

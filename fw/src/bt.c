@@ -118,6 +118,7 @@ static void power(int on)
     gpio_set(2, 7, on);
     if (!on) {                                  /* the UART pins low with it, as the stock */
         REG(U_IER) = 0;
+        REG(0xe000e180u) = 1u << UART1_IRQ;     /* NVIC_ICER: its interrupt off too */
         for (int p = 16; p <= 17; p++) {
             iomux(2, p, 0);
             gpio_dir(2, p, 1);
@@ -291,11 +292,15 @@ static int frame(const uint8_t *f, int n)
         bt_rev++;
         return 5 + len;
     }
-    if (op == 'Q' && (a == 'S' || a == 'L' || a == 'I')) {
+    if (op == 'Q' && a == 'L')                  /* 1.1z: CQL: linking, not lost (the device */
+        return 3;                               /* log: it follows a pairing for seconds) */
+    if (op == 'Q' && (a == 'S' || a == 'I')) {
         if (bt_state == BT_LINKED)
             set_state(BT_READY);
         return 3;
     }
+    if (op == 'K' && a == 'K')                  /* CKKK: a command taken */
+        return 4;
     if (op == 'S' && a == 'E' && b == 'N') {    /* the search is over */
         if (bt_state == BT_SCAN)
             set_state(BT_READY);
@@ -325,10 +330,21 @@ static int frame(const uint8_t *f, int n)
         set_state(BT_READY);
         return 4;
     }
-    if (op == 'H' || (op == 'L' && ok)) {       /* connected: the status gives the name */
+    if (op == 'H') {                            /* 1.1z: CH nn addr name (or CHOK): paired, */
+        int len = digits(f + 2);                /* not connected yet; the device log shows the */
+        if (bt_state == BT_CONNECT) {           /* link comes with CL (CLOK, then CQO) */
+            send('L', '0', '6', bt_addr, 6);
+            connect_op = 'L';
+            tries = 1;
+            t_try = millis();
+            t_state = millis();                 /* its own 45 s */
+        }
+        return ok ? 4 : len > 0 && 4 + len <= n ? 4 + len : 2;
+    }
+    if (op == 'L' && ok) {                      /* connected: the status gives the name */
         set_state(BT_LINKED);
         t_poll = 0;
-        return ok ? 4 : 2;
+        return 4;
     }
     if (op == 'T' && ok) {
         set_state(BT_READY);
@@ -385,7 +401,7 @@ void bt_service(void)
         send('S', '0', '0', 0, 0);
     }
     if ((bt_state == BT_SCAN && now - t_state > 30000) ||
-        (bt_state == BT_CONNECT && now - t_state > 30000)) {
+        (bt_state == BT_CONNECT && now - t_state > 45000)) {
         send(bt_state == BT_SCAN ? 'P' : 'T', '0', '0', 0, 0);
         if (bt_state == BT_CONNECT)
             bt_error = "no connection";

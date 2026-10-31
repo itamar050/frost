@@ -154,14 +154,25 @@ void in_skip(uint32_t n)
     ctl->in_rd += n < a ? n : a;
 }
 
+/* FROST 1.1z: widened, each 16-bit stereo word goes out as two 32-bit words (ctl->wide) */
+static int wide;
+
 static uint32_t raw_space(void)
 {
     uint32_t fill = (ctl->out_wr + HP_OUT_SIZE - ctl->out_rd) % HP_OUT_SIZE;
-    return fill < HP_OUT_SIZE - HP_OUT_GUARD ? HP_OUT_SIZE - HP_OUT_GUARD - fill : 0;
+    uint32_t s = fill < HP_OUT_SIZE - HP_OUT_GUARD ? HP_OUT_SIZE - HP_OUT_GUARD - fill : 0;
+    return wide ? (s / 2) & ~3u : s;
 }
+
+static void raw_word(uint32_t w);
 
 static void raw_write(const uint32_t *w, uint32_t words)
 {
+    if (wide) {
+        while (words--)
+            raw_word(*w++);
+        return;
+    }
     uint32_t o = ctl->out_wr, n = words * 4;
     uint32_t k = HP_OUT_SIZE - o < n ? HP_OUT_SIZE - o : n;
     memcpy((void *)(HP_OUT_BASE + o), w, k);
@@ -173,6 +184,12 @@ static void raw_write(const uint32_t *w, uint32_t words)
 static void raw_word(uint32_t w)
 {
     uint32_t o = ctl->out_wr;
+    if (wide) {                                 /* left, then right, in the high halves */
+        *(volatile uint32_t *)(HP_OUT_BASE + o) = w << 16;
+        o += 4;
+        o = o == HP_OUT_SIZE ? 0 : o;
+        w &= 0xffff0000u;
+    }
     *(volatile uint32_t *)(HP_OUT_BASE + o) = w;
     o += 4;
     ctl->out_wr = o == HP_OUT_SIZE ? 0 : o;
@@ -457,9 +474,13 @@ static void run(void)
         int r = 0;
         ctl->work_loops++;
         if (ctl->state == HP_OPENING) {
+            wide = 0;
+            ctl->wide = 0;
             r = codec_open();
             if (r == 0)
                 r = up_setup();                 /* a rate the DACs do not take: upsampled */
+            if (r == 0 && ctl->widen && ctl->frame_bytes == 4)
+                ctl->wide = wide = 1;           /* FROST 1.1z: 32-bit frames out */
             if (r == 0) {
                 ctl->state = HP_FORMAT;
                 r = 1;

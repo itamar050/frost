@@ -228,6 +228,7 @@ static void menu_open(int *scr)
         *scr = SCR_PLAYING;
     else if (m >= M_USB_RO && m <= M_LOADER) {
         play_stop(STOP_NOW);                    /* the rest needs the audio and core B */
+        bt_shutdown();                          /* 1.1z: and no Bluetooth module meanwhile */
         if (m == M_USB_RO || m == M_USB_RW)
             sys_usb(m == M_USB_RW);
         else if (m == M_INSTALL)
@@ -237,6 +238,8 @@ static void menu_open(int *scr)
         else if (m == M_LOADER)
             sys_loader_usb();
         sd_forget();                            /* the card unwatched meanwhile: maybe changed */
+        if (bt_on)
+            bt_enable(1);                       /* 1.1z: back after the USB/system session */
         log_printf("ui: card to be set up again (after the %s)", m == M_SYSTEM ? "system screen" :
                    m == M_INSTALL ? "installer" : "USB session");
         if (m == M_USB_RW || m == M_INSTALL || m == M_USB_RO) {
@@ -317,6 +320,19 @@ void ui_main(void)
             bt_save_due = 0;
             resume_save();
         }
+        static int bt_was;                      /* 1.1z: connected while a 16-bit track */
+        if (bt_linked() && !bt_was && q_playing && audio.on && audio.bits16) {  /* plays: the */
+            uint32_t at = now_ms();             /* track again from there, in 32-bit frames */
+            int was_paused = audio_paused;
+            play_stop(STOP_NOW);
+            player_seek_hint(at);
+            play_index(q_cur);
+            if (was_paused)
+                audio_pause(1);
+            log_printf("ui: Bluetooth: the track again at %u ms in 32-bit frames", at);
+            full = 1;
+        }
+        bt_was = bt_linked();
         int btk = bt_take_key();                /* FROST: the headphones' buttons */
         if ((btk == BTK_PLAY && (!q_playing || audio_paused)) ||
             (btk == BTK_PAUSE && q_playing && !audio_paused))

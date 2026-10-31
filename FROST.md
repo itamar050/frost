@@ -212,7 +212,7 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.1y): pairing works, no sound yet
+### Bluetooth (test version, 1.1z)
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.
@@ -236,6 +236,14 @@ How it works, all read from the stock firmware V4.0:
 - It takes the same digital audio signal (I2S) that feeds the DACs.
 - The headphone amplifier is switched off while a device is connected, as the stock firmware
   does.
+
+**1.1z, from your device log:** the stock firmware always sends the music to the module as
+32-bit samples. FROST sent 16-bit files (MP3, WMA, CD FLAC) as 16-bit, which the DACs take
+but, it seems, the module does not. With Bluetooth on, every track now goes out in 32-bit
+frames (sample << 16, bit-exact), and a track playing when the headphones connect starts again
+at the same place in that format. Pairing follows the module's own sequence: CH (pair), then
+CL (link), and a "linking" status no longer counts as a lost connection. The module is
+switched off during USB disk, system and install sessions.
 
 **Sound route test (1.1w).** While connected, the Bluetooth screen has a third line,
 **Sound route test: 1 of 4**. PLAY on it steps through four settings of the two output pins

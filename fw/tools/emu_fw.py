@@ -373,6 +373,12 @@ def main():
             bt_say(600, b"CS%02d" % (6 + len(BT_DEVS[0][1])) + BT_DEVS[0][0] + BT_DEVS[0][1])
             bt_say(900, b"CS%02d" % (6 + len(BT_DEVS[1][1])) + BT_DEVS[1][0] + BT_DEVS[1][1])
             bt_say(1500, b"CSEN")
+        elif op == b"H" and opt("--bt-real", None):              # --bt-real: as the device log
+            dev = [d for d in BT_DEVS if d[0] == f[4:10]]       # (1.1y): CH nn addr name, then
+            bt_say(100, b"CKKK")                                 # CQL until a CL links it
+            if dev:
+                bt_say(200, b"CH%02d" % (6 + len(dev[0][1])) + dev[0][0] + dev[0][1])
+                btm["paired"] = dev[0]
         elif op in (b"H", b"L"):
             dev = [d for d in BT_DEVS if d[0] == f[4:10]]
             if op == b"L" and opt("--bt-hp-off", None):
@@ -387,7 +393,8 @@ def main():
                 bt_say(700, b"C" + op + b"ER")
         elif op == b"Q":
             d = btm["linked"]
-            bt_say(5, b"CQO%02d" % (6 + len(d[1])) + d[0] + d[1] if d else b"CQS")
+            bt_say(5, b"CQO%02d" % (6 + len(d[1])) + d[0] + d[1] if d else
+                   b"CQLOK" if btm.get("paired") else b"CQS")
 
     def bt_tick(uc):
         if not opt("--bt", None):

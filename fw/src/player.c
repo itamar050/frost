@@ -2,6 +2,7 @@
  * file by core A, core B's PCM copied into the DAC ring in SYSRAM. The stock codec modules and
  * their mailbox protocol (ETUDE §1.2) were dropped in 0.61. */
 #include "player.h"
+#include "bt.h"
 #include "audio.h"
 #include "board.h"
 #include "bytes.h"
@@ -586,6 +587,7 @@ int player_open(const struct fat_file *f, uint32_t codec, int flags)
     c->comment_end_page = codec == HP_CODEC_OPUS || codec == HP_CODEC_VORBIS ? cpage : 0;
     c->comment_end_seg = cseg;
     c->seek_ms = seek;
+    c->widen = (uint32_t)bt_on;                 /* FROST 1.1z: Bluetooth wants 32-bit I2S */
     c->seek_offset = 0;
     if (c->comment_end_page)
         log_printf("player: comment header ends at page %u, segment %u", c->comment_end_page,
@@ -642,7 +644,7 @@ int player_open(const struct fat_file *f, uint32_t codec, int flags)
                ", codebooks from the cache" : "");
     /* core B decodes into its output ring while the DACs are set up */
     command(HP_CMD_PLAY);
-    ps.fb = c->frame_bytes;
+    ps.fb = c->wide ? 8 : c->frame_bytes;
     if (ps.kept && (dac.rate != player.rate || dac.fb != ps.fb)) {
         dac_switch = 1;                         /* another rate or frame size: the DAC ring */
         drain.on = 0;                           /* plays out first, followed by player_service */
