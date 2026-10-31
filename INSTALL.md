@@ -60,7 +60,7 @@ text. Albums sort by track number. FROST remembers where you stopped and picks u
 
 - **USB disk read/write** in the main menu lets your computer copy files while the player stays on.
 - Both outputs work: 3.5 mm and 4.4 mm balanced.
-- Bluetooth is back in 1.2d as a test: pair from **Main menu › Bluetooth**.
+- **Bluetooth headphones:** Main menu › Bluetooth, turn it on, search and press PLAY on yours. They reconnect by themselves next time.
 - Stuck? Press the reset pin, then power on again. **Debug info** in the main menu shows
   details to share.
 

@@ -5,7 +5,7 @@ berettavexee: a bare-metal firmware written from scratch for the Rockchip RKNano
 player. FROST keeps all of newfw (its decoders, gapless playback, ReplayGain, resume, USB disk,
 installer) and adds what is listed below.
 
-> **Beta, not yet tested on a real player.** Everything below was built and checked in the
+> **Beta, tested on one player.** Everything below was also built and checked in the
 > project's emulator (screens, keys, both storages, the audio that reaches the DAC), and the
 > new decoders were also tested on a PC. Keep a stock image on the player and know the recovery
 > procedure before installing (see "Installing").
@@ -230,8 +230,10 @@ Flat, Rock, Pop, Jazz, Classical, Bass boost, Vocal, Treble, and **Custom** (you
   response to 0.01 dB.
 - **Off (or Flat), nothing touches the samples:** the playback stays bit-perfect.
 
-### Bluetooth (back in 1.2d, to be tested)
-1.2c left Bluetooth out of the build: pairing worked but no sound reached the headphones. 1.2d
+### Bluetooth (working since 1.2d)
+**Confirmed on the player (2026-11-01): music plays through Bluetooth headphones** with the
+sound route at its default (1 of 4, as stock). 1.2c had left Bluetooth out of the build: pairing
+worked but no sound reached the headphones. 1.2d
 builds it again with what the EchoPod firmware (github.com/BasilSkyWalk/echopod, GPL v3; its
 `docs/hardware.md`) found on 2026-10-29, when its Bluetooth started playing. FROST's code was
 written anew from those notes; none of EchoPod's code is copied.

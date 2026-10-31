@@ -5,7 +5,7 @@
 <path d="M120 1180v120M60 1240h120M78 1198l84 84M162 1198l-84 84"/>
 </g>
 <g font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="22" letter-spacing="3">
-<text x="80" y="92" fill="#7FD3FF">CUSTOM FIRMWARE · v1.2c</text>
+<text x="80" y="92" fill="#7FD3FF">CUSTOM FIRMWARE · v1.2d</text>
 <text x="1000" y="92" fill="#A9B8D0" text-anchor="end" font-size="20">FOR SNOWSKY ECHO MINI</text>
 </g>
 <text x="72" y="300" fill="#E8F1FF" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="210" letter-spacing="-6">FROST</text>
@@ -37,24 +37,26 @@
 <text x="490" y="766" fill="#E8F1FF" font-weight="900" font-size="40">Up to 192 kHz</text>
 <text x="490" y="802" fill="#C7D3E6" font-size="21">Bit-perfect lossless, native rates,</text>
 <text x="490" y="830" fill="#C7D3E6" font-size="21">volume set in the DACs.</text>
+<path d="M490 875l16 13-7 6V860l7 6-16 13" fill="none" stroke="#7FD3FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="518" y="893" fill="#7FD3FF" font-weight="900" font-size="36">Bluetooth</text>
 </g>
 <g font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-weight="700" font-size="22" fill="#E8F1FF" stroke="none">
 <g fill="none" stroke="#2A3B5C" stroke-width="2">
-<rect x="80" y="880" width="96" height="46" rx="23"/><rect x="188" y="880" width="96" height="46" rx="23"/><rect x="296" y="880" width="84" height="46" rx="23"/><rect x="392" y="880" width="96" height="46" rx="23"/><rect x="500" y="880" width="122" height="46" rx="23"/><rect x="634" y="880" width="84" height="46" rx="23"/><rect x="730" y="880" width="84" height="46" rx="23"/><rect x="826" y="880" width="84" height="46" rx="23"/>
-<rect x="80" y="940" width="96" height="46" rx="23"/><rect x="188" y="940" width="84" height="46" rx="23"/><rect x="284" y="940" width="84" height="46" rx="23"/><rect x="380" y="940" width="84" height="46" rx="23"/>
+<rect x="80" y="922" width="96" height="46" rx="23"/><rect x="188" y="922" width="96" height="46" rx="23"/><rect x="296" y="922" width="84" height="46" rx="23"/><rect x="392" y="922" width="96" height="46" rx="23"/><rect x="500" y="922" width="122" height="46" rx="23"/><rect x="634" y="922" width="84" height="46" rx="23"/><rect x="730" y="922" width="84" height="46" rx="23"/><rect x="826" y="922" width="84" height="46" rx="23"/>
+<rect x="80" y="980" width="96" height="46" rx="23"/><rect x="188" y="980" width="84" height="46" rx="23"/><rect x="284" y="980" width="84" height="46" rx="23"/><rect x="380" y="980" width="84" height="46" rx="23"/>
 </g>
 <g text-anchor="middle">
-<text x="128" y="911">FLAC</text><text x="236" y="911">ALAC</text><text x="338" y="911">WAV</text><text x="440" y="911">AIFF</text><text x="561" y="911">DSD256</text><text x="676" y="911">APE</text><text x="772" y="911">MP3</text><text x="868" y="911">AAC</text>
-<text x="128" y="971">Opus</text><text x="230" y="971">Ogg</text><text x="326" y="971">MPC</text><text x="422" y="971">WMA</text>
+<text x="128" y="953">FLAC</text><text x="236" y="953">ALAC</text><text x="338" y="953">WAV</text><text x="440" y="953">AIFF</text><text x="561" y="953">DSD256</text><text x="676" y="953">APE</text><text x="772" y="953">MP3</text><text x="868" y="953">AAC</text>
+<text x="128" y="1011">Opus</text><text x="230" y="1011">Ogg</text><text x="326" y="1011">MPC</text><text x="422" y="1011">WMA</text>
 </g>
 </g>
 <g font-family="'Helvetica Neue', Arial, sans-serif" font-size="21" fill="#C7D3E6">
-<text x="80" y="1050"><tspan fill="#E8F1FF" font-weight="700">Shuffle all</tspan> your music</text>
-<text x="400" y="1050"><tspan fill="#E8F1FF" font-weight="700">Audiobooks</tspan> with chapters</text>
-<text x="720" y="1050"><tspan fill="#E8F1FF" font-weight="700">Resume</tspan> where you stopped</text>
-<text x="80" y="1090"><tspan fill="#E8F1FF" font-weight="700">Huge folders</tspan>, quick jump</text>
-<text x="400" y="1090"><tspan fill="#E8F1FF" font-weight="700">Your buttons</tspan>, remapped</text>
-<text x="720" y="1090"><tspan fill="#E8F1FF" font-weight="700">Hebrew &amp; RTL</tspan> tags</text>
+<text x="80" y="1080"><tspan fill="#E8F1FF" font-weight="700">Shuffle all</tspan> your music</text>
+<text x="400" y="1080"><tspan fill="#E8F1FF" font-weight="700">Audiobooks</tspan> with chapters</text>
+<text x="720" y="1080"><tspan fill="#E8F1FF" font-weight="700">Resume</tspan> where you stopped</text>
+<text x="80" y="1118"><tspan fill="#E8F1FF" font-weight="700">Huge folders</tspan>, quick jump</text>
+<text x="400" y="1118"><tspan fill="#E8F1FF" font-weight="700">Your buttons</tspan>, remapped</text>
+<text x="720" y="1118"><tspan fill="#E8F1FF" font-weight="700">Hebrew &amp; RTL</tspan> tags</text>
 </g>
 <path d="M80 1180h920" stroke="#1B2A44" stroke-width="2"/>
 <text x="80" y="1262" fill="#E8F1FF" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="40">Copy. Install. <tspan fill="#FF8A3D">Chill.</tspan></text>
