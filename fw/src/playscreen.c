@@ -1,5 +1,6 @@
 /* The play screen (ETUDE §25, §39; FROST: drawn as a cassette, below) and its keys. */
 #include "ui_priv.h"
+#include "bt.h"
 
 static const char *codec_name(uint32_t c)
 {
@@ -215,6 +216,8 @@ static void status_line(void)
         *p = 0;
         x = lcd_text(x, SL_Y, b, DIM, BG);
     }
+    if (bt_linked())                            /* FROST: playing to Bluetooth headphones */
+        x = lcd_text(x, SL_Y, "BT ", ACCENT, BG);
     if (!bat_mv || ticks() - bat_t > 5000000) {
         bat_t = ticks();
         bat_mv = battery_mv();

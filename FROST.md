@@ -22,6 +22,7 @@ installer) and adds what is listed below.
 | Outputs | 3.5 mm single-ended and 4.4 mm balanced |
 | Keys | Power, VOL+, VOL-, PLAY, BACK, MENU (a resistor ladder on an ADC) |
 | Clock | Real-time clock on I2C |
+| Bluetooth | A separate Bluetooth 5.3 module (SBC) with its own built-in software. The player switches it on (GPIO2_A7) and talks to it over UART1 at 115200 baud |
 
 ## What FROST adds
 
@@ -207,6 +208,40 @@ How "folders" picks the next folder:
 - **Unplugging the headphones pauses the music.**
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
+
+### Bluetooth (test version, 1.1t)
+**Main menu → Bluetooth.**
+
+1. Set **Bluetooth: on**.
+2. Put your headphones in pairing mode.
+3. Choose **Search for headphones**. Up to six devices show up within a few seconds.
+4. Choose your headphones with PLAY.
+
+Once connected:
+
+- The status line shows **BT**.
+- The music goes to the headphones and the wired output is muted.
+- The headphones' play, pause, next and previous buttons work.
+- FROST remembers the device and reconnects to it each time the player starts with Bluetooth
+  on. **Forget …** drops it.
+- If the connection is lost, the music stops at its place. Press PLAY to carry on through the
+  wired output.
+
+How it works, all read from the stock firmware V4.0:
+
+- The module gets short commands over a serial link: search, connect, status, play/stop.
+- It takes the same digital audio signal (I2S) that feeds the DACs.
+- The headphone amplifier is switched off while a device is connected, as the stock firmware
+  does.
+
+The bottom line of the Bluetooth screen shows the last thing the module said. If something
+does not work, a photo of that screen, plus the `bt:` lines in NEWFWLOG.TXT, says why.
+
+**Not yet confirmed on a real player:**
+
+- that sound reaches the headphones at every sample rate (the module may want 44.1/48 kHz);
+- the volume behaviour;
+- the exact meaning of a few replies.
 
 ### SD card
 microSD with FAT32 or exFAT, cards of any size, mounted on first use, with insertion and

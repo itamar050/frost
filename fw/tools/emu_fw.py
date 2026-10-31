@@ -351,7 +351,66 @@ def main():
             last = (last + n) % OUT_SIZE
         cap["start"] = last
 
+    # --bt: a Bluetooth module on UART1, as decoded from the stock firmware (bt.h): it answers
+    # CV15 once powered, two headphones to a search, connects on CH/CL, reports on CQ; and
+    # --bt-keys MS:XX,... sends CXX frames (the headphones' buttons) at those times
+    btm = {"tx": b"", "out": [], "linked": None, "on": False}
+    BT_DEVS = [(bytes.fromhex("a1b2c3d4e5f6"), b"WH-1000XM4"), (bytes.fromhex("0102030405ab"),
+               "\u05d0\u05d5\u05d6\u05e0\u05d9\u05d5\u05ea".encode())]
+    bt_keys = sorted((int(t), k) for t, k in (x.split(":") for x in opt("--bt-keys", "").split(",") if x))
+
+    def bt_now():
+        return struct.unpack("<I", u.mem_read(CLOCK, 4))[0]
+
+    def bt_say(ms, data):
+        btm["out"].append((bt_now() + ms * 1000, data))
+        btm["out"].sort(key=lambda x: x[0])
+
+    def bt_frame(f):
+        log.append(f"BT <- {f!r}")
+        op = f[1:2]
+        if op == b"S":
+            bt_say(600, b"CS%02d" % (6 + len(BT_DEVS[0][1])) + BT_DEVS[0][0] + BT_DEVS[0][1])
+            bt_say(900, b"CS%02d" % (6 + len(BT_DEVS[1][1])) + BT_DEVS[1][0] + BT_DEVS[1][1])
+            bt_say(1500, b"CSEN")
+        elif op in (b"H", b"L"):
+            dev = [d for d in BT_DEVS if d[0] == f[4:10]]
+            if dev:
+                btm["linked"] = dev[0]
+                bt_say(700, b"C" + op + b"OK")
+            else:
+                bt_say(700, b"C" + op + b"ER")
+        elif op == b"Q":
+            d = btm["linked"]
+            bt_say(5, b"CQO%02d" % (6 + len(d[1])) + d[0] + d[1] if d else b"CQS")
+
+    def bt_tick(uc):
+        if not opt("--bt", None):
+            return
+        on = bool(regs.get(0x50030000, 0) & 0x80)
+        if on and not btm["on"]:
+            bt_say(300, b"CV15")
+        if not on:
+            btm["out"], btm["linked"] = [], None
+        btm["on"] = on
+        t = now_ms(uc)
+        if opt("--bt-drop", None) and t >= int(opt("--bt-drop", "0")):
+            btm["linked"] = None                                 # --bt-drop MS: out of range
+        while bt_keys and bt_keys[0][0] <= t:
+            bt_say(0, b"C" + bt_keys.pop(0)[1].encode())
+        now = bt_now()
+        while btm["out"] and btm["out"][0][0] <= now:
+            data = btm["out"].pop(0)[1]
+            log.append(f"BT -> {data!r}")
+            w = struct.unpack("<I", uc.mem_read(sym["bt_rx_w"], 4))[0]
+            for b in data:
+                uc.mem_write(sym["bt_rx"] + (w & 511), bytes([b]))
+                w += 1
+            uc.mem_write(sym["bt_rx_w"], struct.pack("<I", w))
+            uc.mem_write(sym["bt_rx_t"], struct.pack("<I", now))
+
     def coreb_tick(uc, addr, size, _):
+        bt_tick(uc)
         if sh.b and not sh.b.sleeping:
             sh.b.step(5000)
         if pcm_out and sh.b:
@@ -445,6 +504,8 @@ def main():
                 return state.pop("adc_busy", 0)
             if a == 0x4004001c:                                  # I2C0 IPD: all done, no NAK
                 return 0x3f
+            if a == 0x400b007c:                                  # UART1 USR: TX FIFO not full
+                return 2
             if a == 0x40030020:                                  # I2S1 CLR: done
                 return 0
             if a == 0x500100e8:
@@ -482,6 +543,14 @@ def main():
 
         def wr(uc, off, size, val, _):
             a = base + off
+            if a == 0x400b0000 and not regs.get(0x400b000c, 0) & 0x80 and opt("--bt", None):
+                btm["tx"] += bytes([val & 0xff])                 # --bt: a byte to the module
+                f = btm["tx"]
+                need = 10 if f[1:2] in (b"H", b"L") and len(f) >= 4 and f[3:4] == b"6" else 4
+                if len(f) >= need:
+                    btm["tx"] = b""
+                    bt_frame(f)
+                return
             regs[a] = val
             if 0x40110000 <= a < 0x40110100:                     # mailbox
                 ch = sh.write(a - 0x40110000, val, True)

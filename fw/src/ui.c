@@ -4,6 +4,7 @@
  * MENU switches between the browser and now playing, MENU held opens the main menu. Playback
  * runs in the background: the main loop services the player between two key polls. */
 #include "ui_priv.h"
+#include "bt.h"
 
 /* ---- the loop ---- */
 enum { SCR_BROWSER, SCR_PLAYING };
@@ -219,6 +220,8 @@ static void menu_open(int *scr)
         if (books_screen())
             *scr = SCR_PLAYING;
     }
+    else if (m == M_BT)
+        bt_screen();
     else if (m == M_ABOUT)
         about_screen();
     else if (m == M_PLAYING)
@@ -302,6 +305,28 @@ void ui_main(void)
         }
         if (sleep_service())
             full = 1;
+        if (bt_dropped() && q_playing) {        /* FROST: Bluetooth lost: stopped where it was */
+            uint32_t at = now_ms();             /* (PLAY goes on, the DACs set up again) */
+            play_stop(STOP_NOW);
+            parked = 1;
+            parked_ms = at;
+            resume_save();
+            full = 1;
+        }
+        if (bt_save_due) {
+            bt_save_due = 0;
+            resume_save();
+        }
+        int btk = bt_take_key();                /* FROST: the headphones' buttons */
+        if ((btk == BTK_PLAY && (!q_playing || audio_paused)) ||
+            (btk == BTK_PAUSE && q_playing && !audio_paused))
+            btk = A_PLAYPAUSE;
+        else
+            btk = btk == BTK_NEXT ? A_NEXT : btk == BTK_PREV ? A_PREV : A_NONE;
+        if (btk) {
+            play_action(btk, 0);
+            full = 1;
+        }
         int sw = sd_watch();
         if (sw)
             full = 1;

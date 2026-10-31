@@ -1,6 +1,7 @@
 /* Resume state (ETUDE §25, §38): the folder, the selection and the track (where it was), the
  * volume and the modes, kept in the last sector of the log file (log_state_*) */
 #include "ui_priv.h"
+#include "bt.h"
 
 #define offsetof(t, m) __builtin_offsetof(t, m)
 
@@ -23,6 +24,7 @@ struct resume {
 #define XS_TREE  3
 #define XS_QOK   4
 #define XS_BRIGHT 5                             /* brightness 1..10, 0: not saved */
+#define XS_BT    6                              /* Bluetooth on, then the device (6 bytes) */
 struct resume_x {
     char magic[8];                              /* "FROSTX3" */
     uint32_t theme;
@@ -35,6 +37,7 @@ struct resume_x {
     char q_name[24];                            /* the folder's name (the album line) */
     uint32_t sum;
 };
+_Static_assert(XS_BT + 7 <= 40 - KM_SCREENS * S_COUNT, "settings bytes");
 _Static_assert(X_OFF + sizeof(struct resume_x) <= 512, "resume state larger than a sector");
 static uint32_t rs_buf[128];
 static uint32_t rs_last_sum;
@@ -85,6 +88,8 @@ void resume_save(void)
     x->set[XS_BOOK] = (uint8_t)q_book;
     x->set[XS_TREE] = (uint8_t)q_tree;
     x->set[XS_BRIGHT] = (uint8_t)lcd_level;
+    x->set[XS_BT] = (uint8_t)bt_on;
+    __builtin_memcpy(&x->set[XS_BT + 1], bt_addr, 6);
     if (qe) {                                   /* the queue, to build it again */
         x->set[XS_QOK] = 1;
         x->q_cluster = q_root.cluster;
@@ -148,6 +153,9 @@ void resume_load(void)
             tag_cp = x->set[XS_CP];
         if (x->set[XS_BRIGHT] >= 1 && x->set[XS_BRIGHT] <= 10)
             lcd_set_level(x->set[XS_BRIGHT]);
+        __builtin_memcpy(bt_addr, &x->set[XS_BT + 1], 6);
+        if (x->set[XS_BT] == 1)
+            bt_enable(1);
         for (int m = 0; m < KM_SCREENS; m++)
             for (int k = 0; k < S_COUNT; k++)
                 keymap[m][k] = x->keymap[m][k];

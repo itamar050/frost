@@ -17,6 +17,7 @@
 #include "keys.h"
 #include "ui.h"
 #include "sys_priv.h"
+#include "bt.h"
 
 extern uint32_t boot_regs[4], boot_tag;
 
@@ -241,6 +242,7 @@ void sys_idle(void)
     }
     log_poll();
     rtc_service();
+    bt_service();
     if (millis() - sys_t_bat > 60000) {
         static uint32_t t_win, idle_win;
         struct rtc_tm t;

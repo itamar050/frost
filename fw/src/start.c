@@ -5,6 +5,7 @@
  * r0 = vector table, r1 = SP, r2 = reset address. The table therefore lives in .vectors, at
  * the start of .data. The data are copied again from their load address inside the code, and
  * the BSS cleared, so that the firmware does not depend on what the loader did. */
+#include "bt.h"
 #include <stdint.h>
 #include "board.h"
 #include "regs.h"
@@ -33,7 +34,9 @@ void (*const vectors[48])(void) = {
     0,
     Default_Handler,            /* PendSV */
     SysTick_Handler,
-    [16 ... 47] = Default_Handler,
+    [16 ... 40] = Default_Handler,
+    BT_UART_IRQHandler,         /* 41: UART1, the Bluetooth module */
+    [42 ... 47] = Default_Handler,
 };
 
 __attribute__((naked, noreturn)) void Reset_Handler(void)

@@ -1,10 +1,11 @@
 /* The main menu (MENU held) and the date and time screen */
 #include "ui_priv.h"
 #include "version.h"
+#include "bt.h"
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Audiobooks", "Sleep timer: ", "Theme: ", "Brightness: ", "Buttons",
+    "Files", "Now playing", "Audiobooks", "Bluetooth: ", "Sleep timer: ", "Theme: ", "Brightness: ", "Buttons",
     "Sort files: ",
     "Tag text: ", "Date and time", "ReplayGain: ",
     "USB disk, read only", "USB disk, read/write", "Install a firmware (.IMG)", "System screen",
@@ -51,6 +52,8 @@ int main_menu(void)
                     p = put_dec(p, (uint32_t)book_count());
                     p = put_str(p, ")");
                 }
+                if (i == M_BT)
+                    p = put_str(p, bt_linked() ? bt_name : bt_state_name());
                 if (i == M_SORT)
                     p = put_str(p, sort_by_tag ? "by track number" : "by name");
                 if (i == M_TAGCP)
@@ -360,6 +363,81 @@ int books_screen(void)
             book_forget(book_nth(sel));
         } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)
             return 0;
+    }
+}
+
+/* ---- FROST: Bluetooth: on/off, search, the devices found (PLAY connects one), the state.
+ * The bottom line shows what the module said last (to see it work, or not). ---- */
+void bt_screen(void)
+{
+    int sel = 0, top = 0, dirty = 1;
+    uint32_t rev = bt_rev - 1;
+    for (;;) {
+        int n = 2 + (bt_linked() ? 0 : bt_nfound);
+        if (sel >= n)
+            sel = n - 1;
+        if (rev != bt_rev) {
+            rev = bt_rev;
+            dirty = 1;
+        }
+        if (dirty) {
+            lcd_fill(0, 0, LCD_W, LCD_H, BG);
+            lcd_text(4, 0, "Bluetooth", TITLE_FG, BG);
+            for (int i = top; i < n && i < top + 7; i++) {
+                int y = ROW_Y0 + 16 * (i - top);
+                uint16_t bg = i == sel ? SEL_BG : BG;
+                char b[48], *p = b;
+                lcd_fill(0, y, LCD_W, 16, bg);
+                if (i == sel)
+                    lcd_fill(0, y, 3, 16, ACCENT);
+                if (i == 0)
+                    p = put_str(put_str(p, "Bluetooth: "), bt_on ? "on" : "off");
+                else if (i == 1 && bt_linked())
+                    p = put_str(put_str(p, "Forget "), bt_name[0] ? bt_name : "the headphones");
+                else if (i == 1)
+                    p = put_str(p, bt_state == BT_SCAN ? "Searching..." : "Search for headphones");
+                else
+                    p = put_str(put_str(p, "  "), bt_found[i - 2].name[0] ? bt_found[i - 2].name
+                                                                          : "(no name)");
+                *p = 0;
+                lcd_text_clip(12, y, b, LCD_W - 8, i >= 2 ? DIR_FG : FG, bg);
+            }
+            char s[64], *p = put_str(s, bt_state_name());
+            if (bt_linked())
+                p = put_str(put_str(p, ": "), bt_name);
+            else if (bt_error)
+                p = put_str(put_str(p, ", "), bt_error);
+            *p = 0;
+            lcd_text_clip(4, 138, s, LCD_W - 4, bt_linked() ? ACCENT : bt_error ? WARN : FG, BG);
+            lcd_text_clip(4, 154, bt_last, LCD_W - 4, DIM, BG);
+            dirty = 0;
+        }
+        sys_idle();
+        ui_background();
+        struct key_ev e;
+        int ev = key_poll(&e), k = e.key;
+        if (ev == EV_NONE) {
+            cpu_wait();
+            continue;
+        }
+        dirty = 1;
+        if (key_list_dir(k) && ev != EV_LONG && ev != EV_CHORD)
+            list_move(&sel, &top, n, 7, key_list_dir(k));
+        else if (k == KEY_PLAY && ev == EV_PRESS) {
+            if (sel == 0) {
+                bt_enable(!bt_on);
+                resume_save();
+            } else if (sel == 1 && bt_linked()) {
+                bt_forget();
+                resume_save();
+            } else if (sel == 1) {
+                if (!bt_on)
+                    bt_enable(1);
+                bt_scan();
+            } else
+                bt_connect(sel - 2);
+        } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)
+            return;
     }
 }
 
