@@ -13,7 +13,7 @@ IMG_DATE ?= $(shell git log -1 --format=%cs 2>/dev/null)
 CROSS  = arm-none-eabi-
 CC     = $(CROSS)gcc
 CFLAGS = -mcpu=cortex-m3 -mthumb -Os -g -ffreestanding -fno-builtin -nostdlib \
-         -ffunction-sections -fdata-sections -Wall -Wextra $(WARN) -Isrc $(EXTRA)
+         -ffunction-sections -fdata-sections -Wall -Wextra $(WARN) -Isrc -DFROST_BT $(EXTRA)
 # Our code only (not third_party): stricter warnings
 WARN   = -Wshadow -Wmissing-prototypes -Wcast-qual -Wundef
 LDFLAGS = -T link.ld -Wl,--gc-sections -Wl,-Map=$(BUILD)/fw.map -nostdlib -lgcc

@@ -82,7 +82,8 @@ static void send(char op, char a, char b, const uint8_t *data, int n)
     uint8_t f[10] = { 'C', (uint8_t)op, (uint8_t)a, (uint8_t)b };
     for (int i = 0; i < n; i++)
         f[4 + i] = data[i];
-    for (int i = 0; i < 4 + n; i++) {
+    int len = n ? 4 + n : 5;                    /* 1.2d: a short command ends with a 0 byte, */
+    for (int i = 0; i < len; i++) {             /* as the stock firmware's (and EchoPod's) */
         uint32_t t = ticks();
         while (!(REG(U_USR) & 2) && ticks() - t < 2000)
             ;
@@ -144,8 +145,29 @@ int bt_pin_amp(void)                            /* GPIO2_14 */
     return bt_linked() ? bt_route >= 2 : 1;
 }
 
+/* 1.2d: what the stock firmware's start-up leaves set and FROST never set; EchoPod (GPL v3,
+ * github.com/BasilSkyWalk/echopod, docs/hardware.md) found its Bluetooth silent without these
+ * and playing with them (2026-10-29). Clocks 0x11, 0x14, 0x17, 0x81 off (FROST's audio uses
+ * 0x10, 0x12, 0x13, 0x82), I2S0 and SPI0/1 held in reset, GRF INTER_CON0 bit 0 cleared, the
+ * GPIO0_13 and GPIO2_8 pulls as stock, GPIO2_9 low. Which of them matters is not known yet. */
+static void stock_housekeeping(void)
+{
+    REG(GRF_INTER_CON0) = 0x00010000;
+    REG(CRU_CLKGATE(1)) = 0x00920092;
+    REG(CRU_CLKGATE(8)) = 0x00020002;
+    REG(CRU_SOFTRST(0)) = 0x00680068;
+    REG(GRF_BASE + 0x14) = 0x00200020;
+    REG(GRF_BASE + 0x54) = 0x00010001;
+    iomux(2, 9, 0);
+    gpio_dir(2, 9, 1);
+    gpio_set(2, 9, 0);
+    log_printf("bt: stock housekeeping applied");
+}
+
 void bt_route_apply(void)
 {
+    if (bt_linked())
+        stock_housekeeping();
     gpio_set(2, 0, audio.on && !audio_paused ? bt_pin_mute() : 1);
     gpio_set(2, 14, bt_pin_amp());
     log_printf("bt: route %d: GPIO2_0 %d, GPIO2_14 %d", bt_route, bt_pin_mute(), bt_pin_amp());
@@ -420,13 +442,28 @@ void bt_service(void)
         t_poll = now;
         send('Q', '0', '0', 0, 0);
     }
-    if (bt_state == BT_LINKED) {                /* the music state, to the module */
-        int playing = audio.on && !audio_paused;
-        if (playing != playing_sent) {
+    if (bt_state == BT_LINKED) {                /* the music state, to the module (1.2d: */
+        static uint32_t t_notice;               /* as EchoPod: CY0 00 at once on connect; a */
+        static int pending = -1, announced;     /* change after that is announced first, C86 */
+        int playing = audio.on && !audio_paused;/* play, C87 pause, and CY0 follows 100 ms on) */
+        if (playing_sent < 0) {
+            playing_sent = 0;
+            pending = -1;
+            announced = 0;
+            send('Y', '0', 0, 0, 0);
+        } else if (pending >= 0 && now - t_notice >= 100) {
+            send('Y', '0', pending ? 30 : 0, 0, 0);
+            pending = -1;
+        } else if (pending < 0 && playing != playing_sent) {
+            if (announced) {
+                send((char)(playing ? 0x86 : 0x87), '0', '0', 0, 0);
+                pending = playing;
+                t_notice = now;
+            } else {                            /* the first start: no notice */
+                send('Y', '0', playing ? 30 : 0, 0, 0);
+            }
+            announced = 1;
             playing_sent = playing;
-            send('Y', '0', playing ? 30 : 0, 0, 0);
-            if (variant == '5')
-                send((char)(playing ? 0x87 : 0x86), '0', '0', 0, 0);
         }
     }
 }

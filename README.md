@@ -1,6 +1,6 @@
 # FROST
 
-**Custom firmware for the SNOWSKY Echo Mini (8 GB).** Version 1.2c.
+**Custom firmware for the SNOWSKY Echo Mini (8 GB).** Version 1.2d.
 
 <p align="center"><img src="docs/promo/flyer.png" alt="FROST flyer: 24 themes, 10-band EQ, bit-perfect playback up to 192 kHz" width="540"></p>
 
@@ -28,7 +28,7 @@ a new interface, more formats and an equalizer.
 - **Button remapping** on the player or with `KEYMAP.TXT`.
 - 3.5 mm and 4.4 mm balanced outputs, microSD (FAT32/exFAT), USB disk mode.
 
-Bluetooth is turned off in this release while it is being worked on.
+Bluetooth is back in 1.2d as a test: pair from **Main menu › Bluetooth**.
 
 ## Quick install
 

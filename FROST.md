@@ -230,10 +230,26 @@ Flat, Rock, Pop, Jazz, Classical, Bass boost, Vocal, Treble, and **Custom** (you
   response to 0.01 dB.
 - **Off (or Flat), nothing touches the samples:** the playback stays bit-perfect.
 
-### Bluetooth (hidden since 1.2c)
-Pairing works, but no sound reaches the headphones yet, and turning the module on could freeze
-the player. Since 1.2c Bluetooth is left out of the build (the module stays switched off); the
-code is kept (FROST_BT) for when the missing step is found. What was learned so far follows.
+### Bluetooth (back in 1.2d, to be tested)
+1.2c left Bluetooth out of the build: pairing worked but no sound reached the headphones. 1.2d
+builds it again with what the EchoPod firmware (github.com/BasilSkyWalk/echopod, GPL v3; its
+`docs/hardware.md`) found on 2026-10-29, when its Bluetooth started playing. FROST's code was
+written anew from those notes; none of EchoPod's code is copied.
+- **The stock firmware's start-up settings**, applied when a device connects: clocks 0x11,
+  0x14, 0x17 and 0x81 off, I2S0 and SPI0/1 held in reset, GRF INTER_CON0 bit 0 cleared, the
+  GPIO0_13 and GPIO2_8 pulls as stock and GPIO2_9 low. EchoPod was silent without them and played
+  with them; which of them matters is not yet known. FROST's own audio uses I2S1 and other clocks.
+- **Short commands are 5 bytes** ('C', the letter, two characters and a 0), as stock's
+  (FROST sent 4).
+- **The play state:** `CY0 00` at once on connecting; then a change is announced with `C86`
+  (play) or `C87` (pause), and `CY0 1E` / `CY0 00` follows 100 ms later. FROST had the two
+  notices the other way round, and sent them only to one module variant.
+- The routing stays as stock: GPIO2_0 high (the DACs' output muted) and GPIO2_14 low while
+  connected.
+- To make room, the play queue keeps file names to 36 characters (40 before); files are opened
+  by their place on the disk, not by name.
+
+What was learned before, up to 1.2b, follows.
 
 ### Bluetooth notes (test versions up to 1.2b)
 **Main menu → Bluetooth.**

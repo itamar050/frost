@@ -558,7 +558,7 @@ def main():
             if a == 0x400b0000 and not regs.get(0x400b000c, 0) & 0x80 and opt("--bt", None):
                 btm["tx"] += bytes([val & 0xff])                 # --bt: a byte to the module
                 f = btm["tx"]
-                need = 10 if f[1:2] in (b"H", b"L") and len(f) >= 4 and f[3:4] == b"6" else 4
+                need = 10 if f[1:2] in (b"H", b"L") and len(f) >= 4 and f[3:4] == b"6" else 5
                 if len(f) >= need:
                     btm["tx"] = b""
                     bt_frame(f)

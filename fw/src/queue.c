@@ -43,7 +43,7 @@ static void qd_set_count(int f, uint32_t n)
 /* The queue's listing: one folder at a time (FROST: as many entries as the browser's, so that a
  * folder is held whole, or windowed, in both; names cut shorter) */
 #define QL_MAX   LIST_MAX
-#define QL_NAME  40                             /* (FROST 1.0b: 40, room for the code) */
+#define QL_NAME  36                             /* (FROST 1.0b: 40; 1.2d: 36, room for the code) */
 static struct {
     struct entry e[QL_MAX];
     uint16_t order[QL_MAX];

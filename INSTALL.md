@@ -1,6 +1,6 @@
 # FROST — install and quick-start guide
 
-Version 1.2c · SNOWSKY Echo Mini (8 GB). A printable version: [install-guide.pdf](docs/promo/install-guide.pdf).
+Version 1.2d · SNOWSKY Echo Mini (8 GB). A printable version: [install-guide.pdf](docs/promo/install-guide.pdf).
 
 ## 1. Install
 
@@ -60,7 +60,7 @@ text. Albums sort by track number. FROST remembers where you stopped and picks u
 
 - **USB disk read/write** in the main menu lets your computer copy files while the player stays on.
 - Both outputs work: 3.5 mm and 4.4 mm balanced.
-- Bluetooth is turned off in this release while it is being worked on.
+- Bluetooth is back in 1.2d as a test: pair from **Main menu › Bluetooth**.
 - Stuck? Press the reset pin, then power on again. **Debug info** in the main menu shows
   details to share.
 
