@@ -35,7 +35,11 @@ void (*const vectors[48])(void) = {
     Default_Handler,            /* PendSV */
     SysTick_Handler,
     [16 ... 40] = Default_Handler,
+#ifdef FROST_BT
     BT_UART_IRQHandler,         /* 41: UART1, the Bluetooth module */
+#else
+    Default_Handler,
+#endif
     [42 ... 47] = Default_Handler,
 };
 

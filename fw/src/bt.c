@@ -1,5 +1,6 @@
 /* FROST: Bluetooth (bt.h) */
 #include "bt.h"
+#ifdef FROST_BT
 #include "audio.h"
 #include "board.h"
 #include "log.h"
@@ -429,3 +430,5 @@ void bt_service(void)
         }
     }
 }
+
+#endif /* FROST_BT */

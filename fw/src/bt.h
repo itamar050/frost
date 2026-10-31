@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#ifdef FROST_BT
+
 enum { BT_OFF, BT_BOOT, BT_MUTE, BT_READY, BT_SCAN, BT_CONNECT, BT_LINKED };
 enum { BTK_NONE, BTK_PLAY, BTK_PAUSE, BTK_NEXT, BTK_PREV };
 
@@ -55,5 +57,14 @@ static inline int bt_linked(void)
 const char *bt_state_name(void);
 
 void BT_UART_IRQHandler(void);
+
+#else   /* 1.2c: Bluetooth hidden (FROST_BT not defined): the module never powered */
+#define bt_on 0
+static inline int bt_linked(void) { return 0; }
+static inline void bt_service(void) { }
+static inline void bt_shutdown(void) { }
+static inline int bt_pin_mute(void) { return 0; }
+static inline int bt_pin_amp(void) { return 1; }
+#endif
 
 #endif

@@ -241,12 +241,16 @@ static void menu_open(int *scr)
         if (books_screen())
             *scr = SCR_PLAYING;
     }
+#ifdef FROST_BT
     else if (m == M_BT)
         bt_screen();
+#endif
     else if (m == M_ABOUT)
         about_screen();
     else if (m == M_PLAYING)
         *scr = SCR_PLAYING;
+    else if (m == M_EQ)
+        eq_screen();
     else if (m == M_SHUFFLE_ALL) {             /* FROST 1.2: every track of the volume, mixed */
         if (shuffle_all())
             *scr = SCR_PLAYING;
@@ -263,8 +267,10 @@ static void menu_open(int *scr)
         else if (m == M_LOADER)
             sys_loader_usb();
         sd_forget();                            /* the card unwatched meanwhile: maybe changed */
+#ifdef FROST_BT
         if (bt_on)
             bt_enable(1);                       /* 1.1z: back after the USB/system session */
+#endif
         log_printf("ui: card to be set up again (after the %s)", m == M_SYSTEM ? "debug info" :
                    m == M_INSTALL ? "installer" : "USB session");
         if (m == M_USB_RW || m == M_INSTALL) {
@@ -333,6 +339,7 @@ void ui_main(void)
         }
         if (sleep_service())
             full = 1;
+#ifdef FROST_BT                                 /* (1.2c: Bluetooth hidden, not built) */
         if (bt_dropped() && q_playing) {        /* FROST: Bluetooth lost: stopped where it was */
             uint32_t at = now_ms();             /* (PLAY goes on, the DACs set up again) */
             play_stop(STOP_NOW);
@@ -376,6 +383,7 @@ void ui_main(void)
             play_action(btk, 0);
             full = 1;
         }
+#endif
         int sw = sd_watch();
         if (sw)
             full = 1;

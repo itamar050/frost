@@ -166,9 +166,91 @@ static uint32_t raw_space(void)
 
 static void raw_word(uint32_t w);
 
+/* ---- FROST 1.2c: the 10-band equalizer ----
+ * Peaking filters (RBJ cookbook, Q = 1.41: one octave) at 31 Hz to 16 kHz, +-12 dB, on 24-bit
+ * samples with Q28 coefficients and 64-bit sums; the bands at 0 dB (and those above 0.45 of the
+ * rate) skipped; a preamp of minus the largest boost so that nothing clips. Off (every gain 0):
+ * nothing is computed and the samples go through untouched. Core A asks for 32-bit frames while
+ * it is on (ctl->widen), so the result keeps 24 bits. */
+#define EQ_BANDS 10
+static const uint16_t eq_hz[EQ_BANDS] = { 31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000 };
+static struct { int32_t b0, b1, b2, a1, a2; } eqc[EQ_BANDS];
+static int32_t eqs[2][EQ_BANDS][4];             /* x1 x2 y1 y2 */
+static uint8_t eq_list[EQ_BANDS];
+static int eq_n, eq_par;
+static int32_t eq_pre;                          /* Q28 */
+static uint32_t eq_seen = 0xffffffffu;
+
+static float eq_sin(float x)                    /* x in [0, pi/2] */
+{
+    float x2 = x * x;
+    return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42 * (1 - x2 / 72 * (1 - x2 / 110)))));
+}
+
+static int32_t q28(float v)
+{
+    return (int32_t)(v * 268435456.0f + (v < 0 ? -0.5f : 0.5f));
+}
+
+static void eq_setup(void)
+{
+    static const float a40[13] = {      /* 10^(k/40) */
+        1.0f, 1.0592537f, 1.1220185f, 1.1885022f, 1.2589254f, 1.3335214f, 1.4125375f,
+        1.4962357f, 1.5848932f, 1.6788040f, 1.7782794f, 1.8836491f, 1.9952623f };
+    eq_seen = ctl->eq_seq;
+    eq_n = 0;
+    eq_par = 0;
+    int max = 0;
+    memset(eqs, 0, sizeof eqs);
+    for (int b = 0; b < EQ_BANDS; b++) {
+        int g = ctl->eq_gain[b];
+        g = g > 12 ? 12 : g < -12 ? -12 : g;
+        if (!g || !ctl->rate || eq_hz[b] * 20u > ctl->rate * 9u)
+            continue;
+        if (g > max)
+            max = g;
+        float A = g > 0 ? a40[g] : 1.0f / a40[-g];
+        float w = 6.2831853f * eq_hz[b] / (float)ctl->rate;      /* < 0.9 pi */
+        float s, c;
+        if (w <= 1.5707963f) {
+            s = eq_sin(w);
+            c = eq_sin(1.5707963f - w);
+        } else {
+            s = eq_sin(3.1415927f - w);
+            c = -eq_sin(w - 1.5707963f);
+        }
+        float alpha = s / (2 * 1.41f), a0 = 1 + alpha / A;
+        eqc[b].b0 = q28((1 + alpha * A) / a0);
+        eqc[b].b1 = q28(-2 * c / a0);
+        eqc[b].b2 = q28((1 - alpha * A) / a0);
+        eqc[b].a1 = eqc[b].b1;
+        eqc[b].a2 = q28((1 - alpha / A) / a0);
+        eq_list[eq_n++] = (uint8_t)b;
+    }
+    eq_pre = q28(1.0f / (a40[max] * a40[max]));   /* -max dB */
+}
+
+static int32_t eq_sample(int ch, int32_t x)    /* 24-bit in and out */
+{
+    x = (int32_t)(((int64_t)x * eq_pre) >> 28);
+    for (int k = 0; k < eq_n; k++) {
+        int b = eq_list[k];
+        int32_t *s = eqs[ch][b];
+        int64_t acc = (int64_t)eqc[b].b0 * x + (int64_t)eqc[b].b1 * s[0] + (int64_t)eqc[b].b2 * s[1]
+                      - (int64_t)eqc[b].a1 * s[2] - (int64_t)eqc[b].a2 * s[3];
+        int32_t y = (int32_t)(acc >> 28);
+        s[1] = s[0];
+        s[0] = x;
+        s[3] = s[2];
+        s[2] = y;
+        x = y;
+    }
+    return x > 8388607 ? 8388607 : x < -8388608 ? -8388608 : x;
+}
+
 static void raw_write(const uint32_t *w, uint32_t words)
 {
-    if (wide) {
+    if (wide || eq_n) {
         while (words--)
             raw_word(*w++);
         return;
@@ -184,6 +266,30 @@ static void raw_write(const uint32_t *w, uint32_t words)
 static void raw_word(uint32_t w)
 {
     uint32_t o = ctl->out_wr;
+    if (eq_n) {                                 /* 1.2c: the equalizer */
+        if (wide || ctl->frame_bytes == 4) {
+            int32_t l = eq_sample(0, (int32_t)(int16_t)w << 8);
+            int32_t r = eq_sample(1, (int32_t)(w & 0xffff0000u) >> 8);
+            if (!wide) {                        /* 16-bit frames (EQ on in mid-track) */
+                l = (l + 128) >> 8;
+                r = (r + 128) >> 8;
+                w = (uint32_t)(uint16_t)(l > 32767 ? 32767 : l) |
+                    (uint32_t)(r > 32767 ? 32767 : r) << 16;
+            } else {
+                *(volatile uint32_t *)(HP_OUT_BASE + o) = (uint32_t)l << 8;
+                o += 4;
+                o = o == HP_OUT_SIZE ? 0 : o;
+                w = (uint32_t)r << 8;
+            }
+        } else {                                /* 32-bit words: left, right in turn */
+            w = (uint32_t)eq_sample(eq_par, (int32_t)w >> 8) << 8;
+            eq_par ^= 1;
+        }
+        *(volatile uint32_t *)(HP_OUT_BASE + o) = w;
+        o += 4;
+        ctl->out_wr = o == HP_OUT_SIZE ? 0 : o;
+        return;
+    }
     if (wide) {                                 /* left, then right, in the high halves */
         *(volatile uint32_t *)(HP_OUT_BASE + o) = w << 16;
         o += 4;
@@ -460,6 +566,8 @@ static void error(int e)
 static void run(void)
 {
     for (;;) {
+        if (ctl->eq_seq != eq_seen && ctl->state == HP_PLAYING)
+            eq_setup();                         /* 1.2c: a new EQ setting, at once */
         uint32_t seq = ctl->cmd_seq;
         if (seq != ctl->ack_seq) {
             uint32_t cmd = ctl->cmd;
@@ -481,6 +589,8 @@ static void run(void)
                 r = up_setup();                 /* a rate the DACs do not take: upsampled */
             if (r == 0 && ctl->widen && ctl->frame_bytes == 4)
                 ctl->wide = wide = 1;           /* FROST 1.1z: 32-bit frames out */
+            if (r == 0)
+                eq_setup();                     /* 1.2c: at the rate of the output */
             if (r == 0) {
                 ctl->state = HP_FORMAT;
                 r = 1;

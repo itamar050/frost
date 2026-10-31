@@ -99,6 +99,8 @@ struct hp_ctl {
                                            I2S: the Bluetooth module takes only that */
     uint32_t wide;                      /* B, at HP_FORMAT: widened (the ring frames are 8 bytes;
                                            frame_bytes stays the codec's 4) */
+    uint32_t eq_seq;                    /* A (FROST 1.2c): a new EQ setting is a new eq_seq */
+    int8_t eq_gain[12];                 /* A: dB of the 10 bands (31 Hz to 16 kHz), 0: flat */
 #if defined(ECHO_HWTEST) || defined(ECHO_HWSYN) || defined(ECHO_FFTCMP)
     /* Test build only (ETUDE §66): HIFIACC's LPC against dr_flac, per track, written by core B
      * and logged by core A at the end of the track */

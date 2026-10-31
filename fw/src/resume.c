@@ -2,6 +2,7 @@
  * volume and the modes, kept in the last sector of the log file (log_state_*) */
 #include "ui_priv.h"
 #include "bt.h"
+#include "eq.h"
 
 #define offsetof(t, m) __builtin_offsetof(t, m)
 
@@ -36,7 +37,10 @@ struct resume_x {
     uint32_t q_cur, q_track;                    /* the track: its place, its first cluster */
     char q_name[24];                            /* the folder's name (the album line) */
     uint32_t sum;
+    uint8_t eq_mark, eq_on, eq_preset, pad2;    /* 1.2c, after the sum (older states: no mark) */
+    int8_t eq_custom[EQ_BANDS];
 };
+#define EQ_MARK 0xe9
 _Static_assert(XS_BT + 7 <= 40 - KM_SCREENS * S_COUNT, "settings bytes");
 _Static_assert(X_OFF + sizeof(struct resume_x) <= 512, "resume state larger than a sector");
 static uint32_t rs_buf[128];
@@ -88,8 +92,14 @@ void resume_save(void)
     x->set[XS_BOOK] = (uint8_t)q_book;
     x->set[XS_TREE] = (uint8_t)q_tree;
     x->set[XS_BRIGHT] = (uint8_t)lcd_level;
+    x->eq_mark = EQ_MARK;
+    x->eq_on = (uint8_t)eq_on;
+    x->eq_preset = (uint8_t)eq_preset;
+    __builtin_memcpy(x->eq_custom, eq_custom, EQ_BANDS);
+#ifdef FROST_BT
     x->set[XS_BT] = (uint8_t)bt_on;
     __builtin_memcpy(&x->set[XS_BT + 1], bt_addr, 6);
+#endif
     if (qe) {                                   /* the queue, to build it again */
         x->set[XS_QOK] = 1;
         x->q_cluster = q_root.cluster;
@@ -154,8 +164,16 @@ void resume_load(void)
             tag_cp = x->set[XS_CP];
         if (x->set[XS_BRIGHT] >= 1 && x->set[XS_BRIGHT] <= 10)
             lcd_set_level(x->set[XS_BRIGHT]);
+        if (x->eq_mark == EQ_MARK && x->eq_preset < EQ_PRESETS) {
+            eq_on = x->eq_on & 1;
+            eq_preset = x->eq_preset;
+            for (int i = 0; i < EQ_BANDS; i++)
+                eq_custom[i] = x->eq_custom[i] > 12 || x->eq_custom[i] < -12 ? 0 : x->eq_custom[i];
+        }
+#ifdef FROST_BT
         __builtin_memcpy(bt_addr, &x->set[XS_BT + 1], 6);
         bt_on = x->set[XS_BT] == 1;             /* (1.1x: the module started by bt_service) */
+#endif
         for (int m = 0; m < KM_SCREENS; m++)
             for (int k = 0; k < S_COUNT; k++)
                 keymap[m][k] = x->keymap[m][k];

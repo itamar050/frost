@@ -193,7 +193,12 @@ extern int jack_out;                            /* FROST: 0 none, 1 3.5 mm, 2 4.
 int seek_key(const struct key_ev *e);
 
 /* ---- menu.c ---- */
-enum { M_FILES, M_PLAYING, M_SHUFFLE_ALL, M_BOOKS, M_BT, M_SLEEP, M_THEME, M_BRIGHT, M_BUTTONS,
+#ifdef FROST_BT
+#define M_BT_ITEM M_BT,
+#else
+#define M_BT_ITEM
+#endif
+enum { M_FILES, M_PLAYING, M_SHUFFLE_ALL, M_BOOKS, M_EQ, M_BT_ITEM M_SLEEP, M_THEME, M_BRIGHT, M_BUTTONS,
        M_SORT, M_CLOCK, M_RG, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
 /* FROST: the sleep timer (ui.c): minutes, SLEEP_CHAPTER at the end of the chapter, 0 off */
 #define SLEEP_CHAPTER (-1)
@@ -206,6 +211,7 @@ void clock_screen(void);
 void buttons_screen(void);                      /* FROST: the button map editor */
 void about_screen(void);
 void bt_screen(void);                           /* FROST: Bluetooth */
+void eq_screen(void);                           /* FROST 1.2c: equalizer */
 void splash(void);
 
 /* ---- resume.c ---- */

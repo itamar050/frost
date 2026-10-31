@@ -215,7 +215,27 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.2b)
+### Equalizer (1.2c)
+**Main menu → Equalizer.** Ten bands, 31 Hz to 16 kHz, each from −12 to +12 dB, with presets:
+Flat, Rock, Pop, Jazz, Classical, Bass boost, Vocal, Treble, and **Custom** (your own curve).
+
+- VOL keys move between the lines and the bands. PLAY switches the EQ on or off, steps through
+  the presets, or picks up a band; then the VOL keys raise or lower it by 1 dB, and PLAY or
+  BACK puts it down. Moving a band makes the curve "Custom", starting from the preset you were
+  on. The status line shows **EQ** while it is on.
+- The sound changes while the music plays, after about half a second (what is already queued
+  for the DACs).
+- The filtering runs on the second processor, in 24-bit precision, with a preamp of minus the
+  largest boost so it never clips. On the test tone the measured change matched the computed
+  response to 0.01 dB.
+- **Off (or Flat), nothing touches the samples:** the playback stays bit-perfect.
+
+### Bluetooth (hidden since 1.2c)
+Pairing works, but no sound reaches the headphones yet, and turning the module on could freeze
+the player. Since 1.2c Bluetooth is left out of the build (the module stays switched off); the
+code is kept (FROST_BT) for when the missing step is found. What was learned so far follows.
+
+### Bluetooth notes (test versions up to 1.2b)
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.

@@ -2,10 +2,15 @@
 #include "ui_priv.h"
 #include "version.h"
 #include "bt.h"
+#include "eq.h"
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Shuffle all music", "Audiobooks", "Bluetooth: ", "Sleep timer: ",
+    "Files", "Now playing", "Shuffle all music", "Audiobooks", "Equalizer: ",
+#ifdef FROST_BT
+    "Bluetooth: ",
+#endif
+    "Sleep timer: ",
     "Theme: ", "Brightness: ", "Buttons", "Sort files: ", "Date and time", "ReplayGain: ",
     "USB disk, read/write", "Install a firmware (.IMG)", "Debug info", "USB loader mode (exit: RST)",
     "About FROST",
@@ -51,8 +56,12 @@ int main_menu(void)
                     p = put_dec(p, (uint32_t)book_count());
                     p = put_str(p, ")");
                 }
+#ifdef FROST_BT
                 if (i == M_BT)
                     p = put_str(p, bt_linked() ? bt_name : bt_state_name());
+#endif
+                if (i == M_EQ)
+                    p = put_str(p, eq_on ? eq_preset_name() : "off");
                 if (i == M_SORT)
                     p = put_str(p, sort_by_tag ? "by track number" : "by name");
                 *p = 0;
@@ -358,6 +367,7 @@ int books_screen(void)
     }
 }
 
+#ifdef FROST_BT
 /* ---- FROST: Bluetooth: on/off, search, the devices found (PLAY connects one), the state.
  * The bottom line shows what the module said last (to see it work, or not). ---- */
 void bt_screen(void)
@@ -438,6 +448,95 @@ void bt_screen(void)
                 bt_connect(sel - 2);
         } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)
             return;
+    }
+}
+
+#endif
+
+/* ---- FROST 1.2c: the equalizer. Lines: on/off, preset, then the 10 bands drawn as sliders
+ * (31 Hz to 16 kHz, -12 to +12 dB). VOL keys move; PLAY switches EQ, steps the preset, or takes
+ * a band for editing (then VOL keys change it by 1 dB, PLAY or BACK let it go). Editing a band
+ * makes the preset "Custom" (starting from the preset's curve). The music follows at once
+ * (after the half second already queued for the DACs). ---- */
+static void eq_draw(int sel, int edit)
+{
+    lcd_fill(0, 0, LCD_W, LCD_H, BG);
+    lcd_text(4, 0, "Equalizer", TITLE_FG, BG);
+    for (int i = 0; i < 2; i++) {
+        int y = 18 + 16 * i;
+        uint16_t bg = sel == i ? SEL_BG : BG;
+        lcd_fill(0, y, LCD_W, 16, bg);
+        if (sel == i)
+            lcd_fill(0, y, 3, 16, ACCENT);
+        lcd_text(12, y, i ? "Preset: " : "EQ: ", FG, bg);
+        lcd_text(i ? 76 : 44, y, i ? eq_preset_name() : eq_on ? "on" : "off", i ? ACCENT : FG, bg);
+    }
+    const int8_t *g = eq_gains();
+    for (int b = 0; b < EQ_BANDS; b++) {
+        int x = 4 + 31 * b, cur = sel == b + 2;
+        uint16_t bg = cur ? (edit ? ACCENT : SEL_BG) : BG;
+        lcd_fill(x, 54, 29, 100, bg);
+        lcd_fill(x + 2, 102, 25, 1, DIM);       /* 0 dB */
+        int v = g[b] * 4, top = v > 0 ? 102 - v : 102, h = v > 0 ? v : -v;
+        lcd_fill(x + 9, top, 11, h ? h : 1, eq_on ? (cur && edit ? BG : TITLE_FG) : DIM);
+        char t[6], *p = t;
+        if (g[b] > 0)
+            *p++ = '+';
+        else if (g[b] < 0)
+            *p++ = '-';
+        p = put_dec(p, (uint32_t)(g[b] < 0 ? -g[b] : g[b]));
+        *p = 0;
+        if (cur)
+            lcd_text(x + (29 - lcd_text_width(t)) / 2, 54, t, edit ? BG : FG, bg);
+        lcd_text(x + (29 - lcd_text_width(eq_band_name[b])) / 2, 154, eq_band_name[b], DIM, BG);
+    }
+}
+
+void eq_screen(void)
+{
+    int sel = 0, edit = 0, dirty = 1;
+    for (;;) {
+        if (dirty)
+            eq_draw(sel, edit);
+        dirty = 0;
+        sys_idle();
+        ui_background();
+        struct key_ev e;
+        int ev = key_poll(&e), k = e.key, d = key_list_dir(k);
+        if (ev == EV_NONE) {
+            cpu_wait();
+            continue;
+        }
+        dirty = 1;
+        if (edit && d && (ev == EV_PRESS || ev == EV_REPEAT)) {
+            if (eq_preset != EQ_CUSTOM) {       /* the preset's curve, now the user's */
+                const int8_t *g = eq_gains();
+                for (int b = 0; b < EQ_BANDS; b++)
+                    eq_custom[b] = g[b];
+                eq_preset = EQ_CUSTOM;
+            }
+            int v = eq_custom[sel - 2] - d;     /* "up" (-1) raises */
+            eq_custom[sel - 2] = (int8_t)(v > 12 ? 12 : v < -12 ? -12 : v);
+            eq_on = 1;
+            eq_to_ctl();
+        } else if (edit && (k == KEY_PLAY || k == KEY_BACK) && ev == EV_PRESS)
+            edit = 0;
+        else if (d && ev != EV_LONG && ev != EV_CHORD) {
+            sel += d;
+            sel = sel < 0 ? EQ_BANDS + 1 : sel > EQ_BANDS + 1 ? 0 : sel;
+        } else if (k == KEY_PLAY && ev == EV_PRESS) {
+            if (sel == 0)
+                eq_on = !eq_on;
+            else if (sel == 1) {
+                eq_preset = (eq_preset + 1) % EQ_PRESETS;
+                eq_on = 1;
+            } else
+                edit = 1;
+            eq_to_ctl();
+        } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS) {
+            resume_save();
+            return;
+        }
     }
 }
 
