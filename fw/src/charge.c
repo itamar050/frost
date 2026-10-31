@@ -23,7 +23,7 @@
 #define CABLE_OUT_US   500000u
 #define BOOT_NOTE_START 0x43485247u             /* "GRHC": restart without this screen */
 
-int sys_power_mine;
+int sys_power_mine, boot_by_power;
 
 static void draw_frame(void)
 {
@@ -71,7 +71,8 @@ static void start(int at_boot, const char *how)
 
 void charge_screen(int at_boot)
 {
-    if (at_boot && (log_boot_note_take() == BOOT_NOTE_START || !vbus() || power_key()))
+    if (at_boot && (log_boot_note_take() == BOOT_NOTE_START || !vbus() || power_key() ||
+                    boot_by_power))
         return;                                 /* switched on by Power, or restarted from here */
     log_printf("charge: screen (%s, power key %d), battery %u mV, charge pin %d",
                at_boot ? "powered on by the USB cable" : "Power held with the cable in",

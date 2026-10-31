@@ -53,7 +53,10 @@ installer) and adds what is listed below.
 | **DSD** (new) | .dsf, .dff | DSD64, DSD128 and DSD256, mono or stereo, converted to 88.2 kHz / 24-bit PCM. The two-stage FIR rejects aliasing by more than 90 dB, with +6 dB gain (the SACD reference level). Compressed DST is not supported. |
 | **Monkey's Audio** (new) | .ape | File versions 3.97–3.99 at every level, 8, 16 or 24 bits. Output is bit-exact on the PC test. Seeking lands at the start of an APE frame, which can be up to about 7 s early (up to about 27 s at Insane). |
 
-**Not supported:** WMA, DST-compressed DSD, and multichannel files. Formats a dedicated audio
+| **WMA** (new, 1.1x) | .wma | WMA 1 and WMA 2 (the common "Windows Media Audio" of old rips), any bitrate, mono or stereo. Tags are read: title, artist, album, album artist, track and disc. Decoded with Rockbox's fixed-point libwma: 42.7 dB SNR against ffmpeg's floating-point decoder on the test file. Seeking goes to the ASF packet at the same fraction of the file. |
+
+**Not supported:** WMA Pro, WMA Lossless, WMA Voice, DRM-protected WMA (these show up in
+the browser and say why they can't play), DST-compressed DSD, and multichannel files. Formats a dedicated audio
 player doesn't use, such as video files and lossy 5.1, are not included either.
 
 ### Screen and power
@@ -209,7 +212,7 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.1w)
+### Bluetooth (test version, 1.1x): pairing works, no sound yet
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.
@@ -321,5 +324,9 @@ Slot words: `play` `play_hold` `back` `back_hold` `menu` `menu_hold` `vol_up` `v
   author before redistributing images built from this tree.**
 - libdemac (`third_party/libdemac`, from Rockbox) is GPL v2 or later. An image that includes
   the APE decoder is therefore under the GPL as a whole.
+- libwma and the parts of Rockbox's codec library it uses (`third_party/libwma`) are GPL v2 or
+  later. FROST changed four things to fit core B's RAM: the noise table is const, the
+  quantized coefficients and init_vlc's code list share the IMDCT scratch buffer, and the VLC
+  builder's size check follows from that.
 - The other third-party parts keep their licences (see README.md).
 - The Hebrew glyphs and the DSD converter were written for FROST.

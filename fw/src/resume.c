@@ -154,8 +154,7 @@ void resume_load(void)
         if (x->set[XS_BRIGHT] >= 1 && x->set[XS_BRIGHT] <= 10)
             lcd_set_level(x->set[XS_BRIGHT]);
         __builtin_memcpy(bt_addr, &x->set[XS_BT + 1], 6);
-        if (x->set[XS_BT] == 1)
-            bt_enable(1);
+        bt_on = x->set[XS_BT] == 1;             /* (1.1x: the module started by bt_service) */
         for (int m = 0; m < KM_SCREENS; m++)
             for (int k = 0; k < S_COUNT; k++)
                 keymap[m][k] = x->keymap[m][k];

@@ -4,7 +4,7 @@
 
 static const char *codec_name(uint32_t c)
 {
-    static const char *const n[] = { "", "WAV", "FLAC", "MP3", "Vorbis", "Opus", "AIFF", "AAC", "ALAC", "MPC", "DSD", "APE" };
+    static const char *const n[] = { "", "WAV", "FLAC", "MP3", "Vorbis", "Opus", "AIFF", "AAC", "ALAC", "MPC", "DSD", "APE", "WMA" };
     return c < sizeof n / sizeof *n ? n[c] : "";
 }
 
@@ -594,7 +594,7 @@ static void format_line(char *b)
         p = put_khz(p, player_heard.rate);
         p = put_str(p, " kHz  ");
         int lossy = c == HP_CODEC_MP3 || c == HP_CODEC_AAC || c == HP_CODEC_VORBIS ||
-                    c == HP_CODEC_OPUS || c == HP_CODEC_MPC;
+                    c == HP_CODEC_OPUS || c == HP_CODEC_MPC || c == HP_CODEC_WMA;
         if (lossy && kbps) {
             p = put_dec(p, kbps);
             p = put_str(p, " kbps");

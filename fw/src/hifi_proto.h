@@ -164,7 +164,7 @@ struct hp_ctl {
  * by core A as a packet stream (below); the browser gives AAC to every M4A, the container says. */
 enum hp_codec { HP_CODEC_WAV = 1, HP_CODEC_FLAC, HP_CODEC_MP3, HP_CODEC_VORBIS, HP_CODEC_OPUS,
                 HP_CODEC_AIFF, HP_CODEC_AAC, HP_CODEC_ALAC, HP_CODEC_MPC,
-                HP_CODEC_DSD, HP_CODEC_APE };      /* FROST: DSF/DFF, Monkey's Audio */
+                HP_CODEC_DSD, HP_CODEC_APE, HP_CODEC_WMA };    /* FROST: DSF/DFF, Monkey's Audio, WMA */
 
 /* Packet stream (MP4 audio, ETUDE §55): core A reads the container and its tables and writes
  * into the input ring this header, the decoder configuration (AAC: the AudioSpecificConfig),

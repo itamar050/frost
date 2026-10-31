@@ -221,7 +221,7 @@ uint16_t theme_codec_color(uint32_t codec)
         return RGB(255, 215, 0);                    /* DSD: gold */
     case HP_CODEC_MP3:
         return RGB(255, 140, 60);
-    case HP_CODEC_AAC:
+    case HP_CODEC_AAC: case HP_CODEC_WMA:
         return RGB(255, 90, 140);
     case HP_CODEC_VORBIS: case HP_CODEC_OPUS:
         return RGB(110, 220, 110);

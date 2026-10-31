@@ -53,7 +53,7 @@ static int rd_at(uint32_t pos, uint32_t n, const uint8_t **p)
 static uint32_t syncsafe(const uint8_t *p) { return p[0] << 21 | p[1] << 14 | p[2] << 7 | p[3]; }
 
 /* ---- text into a field: UTF-8 out, cut on a character boundary ---- */
-/* enc: 0 Latin-1, 1 UTF-16 with BOM, 2 UTF-16 BE, 3 UTF-8 */
+/* enc: 0 Latin-1, 1 UTF-16 with BOM, 2 UTF-16 BE, 3 UTF-8, 4 UTF-16 LE (FROST: ASF) */
 int tag_cp;
 
 /* Windows-1255 or Latin-1, for an 8-bit text (enc 0) */
@@ -778,6 +778,71 @@ static void apev2(struct tags *t)
     }
 }
 
+/* FROST: WMA (ASF): the Content Description (title, author) and the Extended Content
+ * Description (WM/AlbumTitle, WM/AlbumArtist, WM/TrackNumber, WM/PartOfSet), UTF-16 LE */
+static int asf_key(const uint8_t *n, uint32_t len, const char *k)
+{
+    uint32_t i = 0;
+    for (; k[i]; i++)
+        if (2 * i + 1 >= len || n[2 * i] != (uint8_t)k[i] || n[2 * i + 1])
+            return 0;
+    return len == 2 * i || len == 2 * i + 2;
+}
+
+static void asf(struct tags *t)
+{
+    const uint8_t *p;
+    if (rd_at(0, 30, &p) || p[0] != 0x30 || p[1] != 0x26 || p[2] != 0xb2 || p[3] != 0x75)
+        return;
+    uint32_t hsize = le32(p + 16), nobj = le32(p + 24), pos = 30;
+    char num_s[16];
+    for (uint32_t k = 0; k < nobj && pos + 24 <= hsize; k++) {
+        if (rd_at(pos, 26, &p))
+            return;
+        uint32_t sz = le32(p + 16);
+        if (sz < 24)
+            return;
+        if (p[0] == 0x33 && p[1] == 0x26 && p[2] == 0xb2 && p[3] == 0x75) {
+            if (!rd_at(pos + 24, 10, &p)) {
+                uint32_t tl = le16(p), al = le16(p + 2);
+                if (tl + al < 1024 && !rd_at(pos + 34, tl + al, &p)) {
+                    set_text(t->title, sizeof t->title, p, tl, 4);
+                    set_text(t->artist, sizeof t->artist, p + tl, al, 4);
+                }
+            }
+        } else if (p[0] == 0x40 && p[1] == 0xa4 && p[2] == 0xd0 && p[3] == 0xd2) {
+            uint32_t n = le16(p + 24), q = pos + 26;
+            for (uint32_t i = 0; i < n && q < pos + sz; i++) {
+                if (rd_at(q, 2, &p))
+                    return;
+                uint32_t nl = le16(p);
+                if (nl > 256 || rd_at(q + 2, nl + 4, &p))
+                    return;
+                const uint8_t *name = p;
+                uint32_t type = le16(p + nl), vl = le16(p + nl + 2), v = q + 2 + nl + 4;
+                int which = asf_key(name, nl, "WM/AlbumTitle") ? 1 :
+                            asf_key(name, nl, "WM/AlbumArtist") ? 2 :
+                            asf_key(name, nl, "WM/TrackNumber") ? 3 :
+                            asf_key(name, nl, "WM/PartOfSet") ? 4 : 0;
+                if (which && vl < 512 && !rd_at(v, vl, &p)) {
+                    if (which == 1)
+                        set_text(t->album, sizeof t->album, p, vl, 4);
+                    else if (which == 2 && !t->artist[0])
+                        set_text(t->artist, sizeof t->artist, p, vl, 4);
+                    else if (type == 3 && vl >= 4)
+                        *(which == 3 ? &t->track : &t->disc) = (uint16_t)le32(p);
+                    else if (type == 0) {
+                        set_text(num_s, sizeof num_s, p, vl, 4);
+                        *(which == 3 ? &t->track : &t->disc) = num(num_s);
+                    }
+                }
+                q = v + vl;
+            }
+        }
+        pos += sz;
+    }
+}
+
 void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
 {
     t->title[0] = t->artist[0] = t->album[0] = 0;
@@ -812,7 +877,9 @@ void tags_read(const struct fat_file *f, uint32_t codec, struct tags *t)
         apev2(t);
         if (!t->title[0])
             id3v1(t);
-    } else if (codec == HP_CODEC_DSD) {         /* FROST: DSF, ID3v2 where its header says */
+    } else if (codec == HP_CODEC_WMA)
+        asf(t);
+    else if (codec == HP_CODEC_DSD) {           /* FROST: DSF, ID3v2 where its header says */
         uint8_t h[28];
         struct fat_cursor c = { 0, 0 };
         if (f->size >= 28 && fat_pread(f, &c, 0, h, 28) == 28 && h[0] == 'D' && h[1] == 'S' &&

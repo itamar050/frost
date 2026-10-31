@@ -40,5 +40,6 @@ void sys_loader_usb(void);      /* reboot into the loader's USB mode */
  * returns: restart or off) */
 void charge_screen(int at_boot);
 extern int sys_power_mine;      /* the charging screen reads Power itself (not sys_idle) */
+extern int boot_by_power;       /* FROST 1.1x: Power held at the first instant of the boot */
 
 #endif

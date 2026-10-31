@@ -36,12 +36,27 @@ static volatile uint8_t bt_rx[512];
 static volatile uint32_t bt_rx_w, bt_rx_t;
 static uint32_t bt_rx_r;
 
+/* 1.1x: every cause cleared (line status: LSR read; busy: USR read), at most 64 bytes a call,
+ * and an interrupt that keeps coming without data switched off: never a storm that would starve
+ * the player */
+static uint32_t irq_idle;
+
 void BT_UART_IRQHandler(void)
 {
-    (void)REG(U_IIR);
-    while (REG(U_USR) & 8)
+    uint32_t iir = REG(U_IIR) & 0xf, got = 0;
+    if (iir == 0x6)
+        (void)REG(U + 0x14);                    /* LSR */
+    if (iir == 0x7)
+        (void)REG(U_USR);
+    while ((REG(U + 0x14) & 1) && got < 64) {   /* LSR data ready */
         bt_rx[bt_rx_w++ & 511] = (uint8_t)REG(U_DATA);
+        got++;
+    }
     bt_rx_t = ticks();
+    if (got)
+        irq_idle = 0;
+    else if (++irq_idle > 1000)
+        REG(U_IER) = 0;                         /* (bt_service sees it: logged, restarted) */
 }
 
 static void uart_init(void)
@@ -354,8 +369,19 @@ static void take_burst(void)
 
 void bt_service(void)
 {
+    static int started;                         /* 1.1x: switched on 3 s after boot, not */
+    if (bt_on && !started && bt_state == BT_OFF && millis() > 3000) {   /* while it starts */
+        started = 1;
+        bt_enable(1);
+    }
     if (bt_state == BT_OFF)
         return;
+    if (irq_idle > 1000) {
+        log_printf("bt: UART interrupt storm: module restarted");
+        irq_idle = 0;
+        bt_enable(1);
+        return;
+    }
     if (bt_rx_r != bt_rx_w && ticks() - bt_rx_t > 4000)
         take_burst();
     uint32_t now = millis();

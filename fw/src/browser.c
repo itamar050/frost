@@ -52,7 +52,7 @@ static uint32_t codec_of(const char *name)
         { "m4b", HP_CODEC_AAC }, { "mp4", HP_CODEC_AAC }, { "mpc", HP_CODEC_MPC },
         { "mp+", HP_CODEC_MPC }, { "mpp", HP_CODEC_MPC },
         { "dsf", HP_CODEC_DSD }, { "dff", HP_CODEC_DSD },             /* FROST */
-        { "ape", HP_CODEC_APE },
+        { "ape", HP_CODEC_APE }, { "wma", HP_CODEC_WMA },
     };
     const char *dot = 0;
     for (const char *p = name; *p; p++)

@@ -213,10 +213,32 @@ $(BUILD)/hifi_ape.elf: $(DEMAC_OBJS) $(HDEPS)
 	  $(HLDFLAGS) -Wl,-Map=$(BUILD)/hifi_ape.map -o $@
 	$(CROSS)size $@
 
-$(BUILD)/codecs.bin: $(BUILD)/hifi_ape.elf $(BUILD)/hifi_dsd.elf $(BUILD)/hifi_pcm.elf $(BUILD)/hifi_flac.elf $(BUILD)/hifi_mp3.elf $(BUILD)/hifi_vorbis.elf $(BUILD)/hifi_opus.elf $(BUILD)/hifi_aac.elf $(BUILD)/hifi_alac.elf $(BUILD)/hifi_mpc.elf tools/mkpack.py
+# FROST: WMA 1/2 with Rockbox's libwma (third_party/libwma, GPL v2 or later; noise table made
+# const), its codec library's MDCT/FFT and VLC code, our ASF reader (hifi/codec_wma.c)
+WMA_DIR ?= ../third_party/libwma
+WMA_SRCS := wmadeci.c wmafixed.c codecs/lib/ffmpeg_bitstream.c codecs/lib/fft-ffmpeg.c \
+            codecs/lib/mdct.c codecs/lib/mdct_lookup.c
+WMA_OBJS := $(patsubst %.c,$(BUILD)/wma/%.o,$(notdir $(WMA_SRCS)))
+WMA_FLAGS = -mcpu=cortex-m3 -mthumb -O2 -g -ffreestanding -nostdlib -ffunction-sections \
+            -fdata-sections -w -I$(WMA_DIR)/compat -I$(WMA_DIR) -I$(WMA_DIR)/codecs/lib \
+            -include $(WMA_DIR)/compat/codecs.h
+
+$(BUILD)/wma/%.o: $(WMA_DIR)/%.c $(BUILD)/flags
+	@mkdir -p $(dir $@)
+	$(CC) $(WMA_FLAGS) -c $< -o $@
+$(BUILD)/wma/%.o: $(WMA_DIR)/codecs/lib/%.c $(BUILD)/flags
+	@mkdir -p $(dir $@)
+	$(CC) $(WMA_FLAGS) -c $< -o $@
+
+$(BUILD)/hifi_wma.elf: $(WMA_OBJS) $(HDEPS)
+	$(CC) $(HCFLAGS) -I$(WMA_DIR)/compat -I$(WMA_DIR) -I$(WMA_DIR)/codecs/lib hifi/rt.c \
+	  hifi/codec_wma.c $(WMA_OBJS) $(HLDFLAGS) -Wl,-Map=$(BUILD)/hifi_wma.map -o $@
+	$(CROSS)size $@
+
+$(BUILD)/codecs.bin: $(BUILD)/hifi_wma.elf $(BUILD)/hifi_ape.elf $(BUILD)/hifi_dsd.elf $(BUILD)/hifi_pcm.elf $(BUILD)/hifi_flac.elf $(BUILD)/hifi_mp3.elf $(BUILD)/hifi_vorbis.elf $(BUILD)/hifi_opus.elf $(BUILD)/hifi_aac.elf $(BUILD)/hifi_alac.elf $(BUILD)/hifi_mpc.elf tools/mkpack.py
 	python3 tools/mkpack.py $@ 1:$(BUILD)/hifi_pcm.elf 2:$(BUILD)/hifi_flac.elf 3:$(BUILD)/hifi_mp3.elf \
 	  4:$(BUILD)/hifi_vorbis.elf 5:$(BUILD)/hifi_opus.elf 7:$(BUILD)/hifi_aac.elf 8:$(BUILD)/hifi_alac.elf 9:$(BUILD)/hifi_mpc.elf \
-	  10:$(BUILD)/hifi_dsd.elf 11:$(BUILD)/hifi_ape.elf
+	  10:$(BUILD)/hifi_dsd.elf 11:$(BUILD)/hifi_ape.elf 12:$(BUILD)/hifi_wma.elf
 
 $(OUT): $(BUILD)/fw.elf $(BUILD)/codecs.bin $(BUILD)/font.bin tools/mkimg.py
 	python3 tools/mkimg.py $(BUILD)/fw.elf $@ --pack $(BUILD)/codecs.bin --font $(BUILD)/font.bin \
