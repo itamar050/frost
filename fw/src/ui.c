@@ -206,6 +206,27 @@ static int sleep_service(void)
     return 1;
 }
 
+/* FROST 1.2: "Shuffle all music": the whole card (else the internal storage) as one tree queue,
+ * in shuffle mode, from a random track */
+static int shuffle_all(void)
+{
+    int v = sd_open() == 0 ? FAT_VOL_SD : FAT_VOL_INT;
+    struct fat_dir d;
+    fat_root(v, &d);
+    if (q_playing)
+        play_stop(STOP_NOW);
+    parked = 0;
+    rnd ^= ticks();
+    q_from_tree(&d, v == FAT_VOL_SD ? "SD card" : "Internal");
+    book_set(0);
+    if (!q_n)
+        return 0;
+    play_mode = MODE_SHUFFLE;
+    play_index(q_shuffle_first());
+    resume_save();
+    return 1;
+}
+
 /* MENU held: the main menu, then what was chosen in it */
 static void menu_open(int *scr)
 {
@@ -226,11 +247,15 @@ static void menu_open(int *scr)
         about_screen();
     else if (m == M_PLAYING)
         *scr = SCR_PLAYING;
-    else if (m >= M_USB_RO && m <= M_LOADER) {
+    else if (m == M_SHUFFLE_ALL) {             /* FROST 1.2: every track of the volume, mixed */
+        if (shuffle_all())
+            *scr = SCR_PLAYING;
+    }
+    else if (m >= M_USB_RW && m <= M_LOADER) {
         play_stop(STOP_NOW);                    /* the rest needs the audio and core B */
         bt_shutdown();                          /* 1.1z: and no Bluetooth module meanwhile */
-        if (m == M_USB_RO || m == M_USB_RW)
-            sys_usb(m == M_USB_RW);
+        if (m == M_USB_RW)
+            sys_usb(1);
         else if (m == M_INSTALL)
             sys_install();
         else if (m == M_SYSTEM)
@@ -240,9 +265,9 @@ static void menu_open(int *scr)
         sd_forget();                            /* the card unwatched meanwhile: maybe changed */
         if (bt_on)
             bt_enable(1);                       /* 1.1z: back after the USB/system session */
-        log_printf("ui: card to be set up again (after the %s)", m == M_SYSTEM ? "system screen" :
+        log_printf("ui: card to be set up again (after the %s)", m == M_SYSTEM ? "debug info" :
                    m == M_INSTALL ? "installer" : "USB session");
-        if (m == M_USB_RW || m == M_INSTALL || m == M_USB_RO) {
+        if (m == M_USB_RW || m == M_INSTALL) {
             path_root(FAT_VOL_INT);             /* the volume may have changed */
             dir_load(&path[1].dir);
             q_clear();

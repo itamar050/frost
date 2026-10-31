@@ -5,11 +5,10 @@
 
 /* ---- main menu ---- */
 static const char *const m_names[M_COUNT] = {
-    "Files", "Now playing", "Audiobooks", "Bluetooth: ", "Sleep timer: ", "Theme: ", "Brightness: ", "Buttons",
-    "Sort files: ",
-    "Tag text: ", "Date and time", "ReplayGain: ",
-    "USB disk, read only", "USB disk, read/write", "Install a firmware (.IMG)", "System screen",
-    "USB loader mode (exit: RST)", "About FROST",
+    "Files", "Now playing", "Shuffle all music", "Audiobooks", "Bluetooth: ", "Sleep timer: ",
+    "Theme: ", "Brightness: ", "Buttons", "Sort files: ", "Date and time", "ReplayGain: ",
+    "USB disk, read/write", "Install a firmware (.IMG)", "Debug info", "USB loader mode (exit: RST)",
+    "About FROST",
 };
 
 int main_menu(void)
@@ -56,9 +55,6 @@ int main_menu(void)
                     p = put_str(p, bt_linked() ? bt_name : bt_state_name());
                 if (i == M_SORT)
                     p = put_str(p, sort_by_tag ? "by track number" : "by name");
-                if (i == M_TAGCP)
-                    p = put_str(p, tag_cp == TAG_CP_AUTO ? "auto (Hebrew or Latin)" :
-                                   tag_cp == TAG_CP_HEBREW ? "Hebrew (Windows-1255)" : "Latin-1");
                 *p = 0;
                 lcd_text_clip(12, y, b, list_text_end(M_COUNT, ROWS), FG, bg);
             }
@@ -87,10 +83,6 @@ int main_menu(void)
             if (path[depth].sel >= dir_n)
                 path[depth].sel = path[depth].top = 0;
             q_resort();
-            resume_save();
-            dirty = 1;
-        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_TAGCP) {
-            tag_cp = (tag_cp + 1) % TAG_CP_COUNT;   /* the next track read with it */
             resume_save();
             dirty = 1;
         } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_THEME) {
@@ -452,6 +444,7 @@ void bt_screen(void)
 /* FROST: the power-off screen, in the theme: a snowflake, "Power off", the place kept */
 void ui_power_splash(void)
 {
+    audio_silence();
     lcd_fill(0, 0, LCD_W, LCD_H, BG);
     snowflake(160, 58, 30, ACCENT);
     snowflake(160, 58, 12, TITLE_FG);

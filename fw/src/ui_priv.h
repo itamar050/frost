@@ -136,6 +136,7 @@ extern uint32_t rnd;
 int q_next_index(int i, int user);              /* the track after i, or -1: end of the queue */
 int q_prev_index(int i);                        /* the track before i (BACK), or -1 */
 void q_shuffle_new(void);                       /* another shuffled order */
+int q_shuffle_first(void);
 void q_from_dir(int start);
 void q_from_tree(const struct fat_dir *top, const char *name);
 void q_clear(void);
@@ -192,8 +193,8 @@ extern int jack_out;                            /* FROST: 0 none, 1 3.5 mm, 2 4.
 int seek_key(const struct key_ev *e);
 
 /* ---- menu.c ---- */
-enum { M_FILES, M_PLAYING, M_BOOKS, M_BT, M_SLEEP, M_THEME, M_BRIGHT, M_BUTTONS, M_SORT, M_TAGCP, M_CLOCK, M_RG,
-       M_USB_RO, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
+enum { M_FILES, M_PLAYING, M_SHUFFLE_ALL, M_BOOKS, M_BT, M_SLEEP, M_THEME, M_BRIGHT, M_BUTTONS,
+       M_SORT, M_CLOCK, M_RG, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
 /* FROST: the sleep timer (ui.c): minutes, SLEEP_CHAPTER at the end of the chapter, 0 off */
 #define SLEEP_CHAPTER (-1)
 extern int sleep_set;

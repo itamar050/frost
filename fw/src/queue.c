@@ -230,6 +230,11 @@ void q_shuffle_new(void)                        /* another shuffled order */
     q_seed = rnd_next();
 }
 
+int q_shuffle_first(void)                       /* FROST 1.2: the first of the order */
+{
+    return q_n ? perm(0, 0) : 0;
+}
+
 int q_next_index(int i, int user)        /* the track after i, or -1: end of the queue */
 {
     if (!q_n)

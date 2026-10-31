@@ -157,6 +157,10 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   the "chpl" list.
 
 ### Play modes
+**Shuffle all music** (1.2b, main menu, third line): every track of the microSD card (or of the
+internal storage when there is no card) in one queue, all its folders, played in shuffle from a
+random track. The status line shows "mix".
+
 BACK held on the play screen cycles through the modes. The status line shows each one's sign
 and a word:
 
@@ -182,12 +186,11 @@ How "folders" picks the next folder:
   - M4A: iTunes tags.
   - MPC and APE: APEv2.
   - DSF: its ID3 tag.
-- **Hebrew in old tags** (Main menu → Tag text). Many Israeli MP3s store Hebrew in Windows-1255
-  while the tag says Latin-1, which shows as "ùéø". On **auto**, an 8-bit text is read as Hebrew
-  when it holds at least three Hebrew-range letters, or two with no Latin letters. Accented
-  Latin titles such as "Café crème" stay as they are.
-  - "Hebrew" or "Latin-1" forces one or the other.
-  - Hebrew vowel points (niqqud) are dropped.
+- **Hebrew in old tags** (automatic). Many Israeli MP3s store Hebrew in Windows-1255 while the
+  tag says Latin-1, which shows as "ùéø". An 8-bit text is read as Hebrew when it holds at least
+  three Hebrew-range letters, or two with no Latin letters. Accented Latin titles such as "Café
+  crème" stay as they are. Hebrew vowel points (niqqud) are dropped. (The "Tag text" menu entry
+  was removed in 1.2b; the automatic choice stays.)
 - **Sort files** (Main menu → Sort files: by name / by track number). With "by track number",
   the files of a folder of up to 250 files are ordered by disc, then track, from their tags.
   - Files without a track number come after, by name; folders stay first, by name.
@@ -212,7 +215,7 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.2a)
+### Bluetooth (test version, 1.2b)
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.

@@ -118,6 +118,7 @@ void resume_save(void)
 void ui_power_off(void)
 {
     resume_save();
+    audio_silence();
 }
 
 static char *find_name;

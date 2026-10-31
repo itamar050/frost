@@ -565,6 +565,19 @@ int audio_start(uint32_t rate, int bits16)
 
 static void dac_standby(int on);
 
+/* FROST 1.2: switching off: muted and the I2S stopped at once (else the DMA goes round the ring
+ * while nothing feeds it: the last half second over and over, a stuck record), the state as it
+ * was (paused or playing, for the resume) */
+void audio_silence(void)
+{
+    if (!audio.on)
+        return;
+    both(0x090001, 0xff);
+    both(0x090002, 0xff);
+    gpio_set(2, 0, 1);
+    REG(I2S_XFER) = 0;
+}
+
 void audio_stop(void)
 {
     if (!audio.on)
