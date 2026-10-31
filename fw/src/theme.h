@@ -15,7 +15,7 @@ struct theme {
 };
 #define THEME_SPARKLE 1
 
-#define THEME_COUNT 12
+#define THEME_COUNT 24
 extern const struct theme themes[THEME_COUNT];
 extern const struct theme *th;
 extern int theme_index;

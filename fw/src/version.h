@@ -9,7 +9,7 @@
 #elif defined(ECHO_HWTEST)
 #define FW_VERSION "0.95hwt"           /* test build: accelerators against the software */
 #else
-#define FW_VERSION "1.1u"             /* 4 characters at most: the USB disk's revision */
+#define FW_VERSION "1.1v"             /* 4 characters at most: the USB disk's revision */
 #endif
 #define FW_DATE    "2026-10-31"
 
