@@ -289,6 +289,7 @@ void sys_idle(void)
 void sys_power_off(const char *why)
 {
     ui_power_off();
+    bt_shutdown();                              /* FROST: the Bluetooth module off first */
     log_printf("power off (%s), battery %u mV", why, battery_mv());
     log_flush();
     mdelay(300);
@@ -296,8 +297,23 @@ void sys_power_off(const char *why)
     power_off();
     for (uint32_t t0 = ticks(); !vbus() && power_key() && ticks() - t0 < 10000000;)
         wdt_kick();                             /* the key still holding the power: its release */
-    if (!vbus())
-        power_off();
+    /* FROST 1.1w: without the cable, never back to a screen (1.1v showed the charging screen
+     * while the rails were still going down, and stayed in it, which also showed it at the next
+     * Power press): the hold kept released, the screen dark, until the power is gone. Power
+     * pressed again meanwhile: a restart, as a switch-on. */
+    int released = !power_key();
+    while (!vbus()) {
+        wdt_kick();
+        cpu_wait();                             /* (1 ms: the SysTick) */
+        gpio_set(PIN_POWER_HOLD, 0);
+        if (!released)
+            released = !power_key();
+        else if (power_key()) {
+            log_printf("power off: Power pressed again before the power went: restart");
+            log_flush();
+            reboot();
+        }
+    }
     log_printf("power off: still powered (USB)");
 }
 

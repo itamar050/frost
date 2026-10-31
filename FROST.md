@@ -209,7 +209,7 @@ How "folders" picks the next folder:
 - The 4.4 mm output keeps newfw's DAC settings, which are the same as the stock firmware's.
   newfw lists checking the balanced output by ear on a real player as still to do.
 
-### Bluetooth (test version, 1.1v)
+### Bluetooth (test version, 1.1w)
 **Main menu → Bluetooth.**
 
 1. Set **Bluetooth: on**.
@@ -233,6 +233,12 @@ How it works, all read from the stock firmware V4.0:
 - It takes the same digital audio signal (I2S) that feeds the DACs.
 - The headphone amplifier is switched off while a device is connected, as the stock firmware
   does.
+
+**Sound route test (1.1w).** While connected, the Bluetooth screen has a third line,
+**Sound route test: 1 of 4**. PLAY on it steps through four settings of the two output pins
+the stock firmware switches when Bluetooth connects. 1 is what the stock firmware does. With
+music playing, try each one for a few seconds and note which one gives sound in the
+headphones.
 
 The bottom line of the Bluetooth screen shows the last thing the module said. If something
 does not work, a photo of that screen, plus the `bt:` lines in NEWFWLOG.TXT, says why.

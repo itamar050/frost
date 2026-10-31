@@ -37,6 +37,11 @@ extern char bt_last[24];                /* the last frame received, printable (t
 extern const char *bt_error;            /* the last failure, or 0 */
 
 void bt_enable(int on);
+void bt_shutdown(void);                 /* the module off before the player (bt_on kept) */
+extern int bt_route;                    /* 0..3: the output pins while connected (a test) */
+int bt_pin_mute(void);
+int bt_pin_amp(void);
+void bt_route_apply(void);
 void bt_service(void);                  /* from the idle loop */
 void bt_scan(void);
 void bt_connect(int i);                 /* bt_found[i] */

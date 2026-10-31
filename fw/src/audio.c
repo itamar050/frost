@@ -133,7 +133,7 @@ static void gpio_out(int bank, int pin, int val)
 static void dac_power(void)
 {
     gpio_out(2, 0, 1);
-    gpio_out(2, 14, !bt_linked());            /* FROST: off while Bluetooth plays */
+    gpio_out(2, 14, bt_pin_amp());            /* FROST: off while Bluetooth plays */
     gpio_out(2, 2, 1);
     mdelay(2);
     gpio_out(2, 1, 0);
@@ -553,7 +553,7 @@ int audio_start(uint32_t rate, int bits16)
     mdelay(80);
     REG(I2S_XFER) = 1;                          /* TX start */
     mdelay(20);
-    gpio_out(2, 0, bt_linked());                /* as RECHO once running (unmute, maybe) */
+    gpio_out(2, 0, bt_pin_mute());                /* as RECHO once running (unmute, maybe) */
     REG(I2S_INTCR) |= 4;                        /* underrun flag from the start-up cleared */
     log_printf("audio: running: dma sar %x ch_en %x cfg %x, i2s fifo %u intsr %x, %u i2c errors",
                REG(CH_SAR), REG(CH_EN), REG(DMA_CFG), i2s_fifo(), REG(I2S_INTSR),
@@ -682,7 +682,7 @@ void audio_pause(int on)
             dac_standby(0);
         REG(I2S_XFER) = 1;
         REG(I2S_INTCR) |= 4;                    /* the underrun flag of the stop cleared */
-        gpio_set(2, 0, bt_linked());
+        gpio_set(2, 0, bt_pin_mute());
         both(0x090001, vol);
         both(0x090002, vol);
     }

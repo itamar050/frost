@@ -373,7 +373,7 @@ void bt_screen(void)
     int sel = 0, top = 0, dirty = 1;
     uint32_t rev = bt_rev - 1;
     for (;;) {
-        int n = 2 + (bt_linked() ? 0 : bt_nfound);
+        int n = 2 + (bt_linked() ? 1 : bt_nfound);
         if (sel >= n)
             sel = n - 1;
         if (rev != bt_rev) {
@@ -396,11 +396,16 @@ void bt_screen(void)
                     p = put_str(put_str(p, "Forget "), bt_name[0] ? bt_name : "the headphones");
                 else if (i == 1)
                     p = put_str(p, bt_state == BT_SCAN ? "Searching..." : "Search for headphones");
+                else if (bt_linked()) {         /* 1.1w: the output pins, to try (no sound?) */
+                    p = put_str(p, "Sound route test: ");
+                    p = put_dec(p, (uint32_t)bt_route + 1);
+                    p = put_str(p, bt_route ? " of 4" : " of 4 (as stock)");
+                }
                 else
                     p = put_str(put_str(p, "  "), bt_found[i - 2].name[0] ? bt_found[i - 2].name
                                                                           : "(no name)");
                 *p = 0;
-                lcd_text_clip(12, y, b, LCD_W - 8, i >= 2 ? DIR_FG : FG, bg);
+                lcd_text_clip(12, y, b, LCD_W - 8, i >= 2 && !bt_linked() ? DIR_FG : FG, bg);
             }
             char s[64], *p = put_str(s, bt_state_name());
             if (bt_linked())
@@ -434,6 +439,9 @@ void bt_screen(void)
                 if (!bt_on)
                     bt_enable(1);
                 bt_scan();
+            } else if (bt_linked()) {
+                bt_route = (bt_route + 1) % 4;
+                bt_route_apply();
             } else
                 bt_connect(sel - 2);
         } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)

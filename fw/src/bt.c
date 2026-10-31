@@ -27,7 +27,9 @@ char bt_last[24];
 const char *bt_error;
 
 static int variant, key, dropped, playing_sent = -1, want_scan;
-static uint32_t t_state, t_poll;
+static uint32_t t_state, t_poll, t_try;
+static int tries;
+static char connect_op;                         /* H: a device found, L: the one remembered */
 
 /* ---- the UART: bytes in by interrupt, a frame burst taken after 4 ms of silence ---- */
 static volatile uint8_t bt_rx[512];
@@ -96,8 +98,7 @@ static void set_state(int s)
     bt_rev++;
     log_printf("bt: state %s", bt_state_name());
     if (s == BT_LINKED) {                       /* the music to the module: the amplifier off */
-        gpio_set(2, 0, 1);
-        gpio_set(2, 14, 0);
+        bt_route_apply();
         playing_sent = -1;
     } else if (was == BT_LINKED) {
         gpio_set(2, 14, 1);
@@ -119,6 +120,37 @@ static void power(int on)
             gpio_set(2, p, 0);
         }
     }
+}
+
+/* FROST 1.1w: the two output pins while connected, four ways to try on the device (the stock
+ * firmware's is 0); the Bluetooth screen cycles them */
+int bt_route;
+
+int bt_pin_mute(void)                           /* GPIO2_0 (1: muted) while playing */
+{
+    return bt_linked() ? bt_route == 0 || bt_route == 3 : 0;
+}
+
+int bt_pin_amp(void)                            /* GPIO2_14 */
+{
+    return bt_linked() ? bt_route >= 2 : 1;
+}
+
+void bt_route_apply(void)
+{
+    gpio_set(2, 0, audio.on && !audio_paused ? bt_pin_mute() : 1);
+    gpio_set(2, 14, bt_pin_amp());
+    log_printf("bt: route %d: GPIO2_0 %d, GPIO2_14 %d", bt_route, bt_pin_mute(), bt_pin_amp());
+}
+
+/* The player switches off: the module first (powered, it could hold the rails up through its
+ * UART pins); the setting is kept */
+void bt_shutdown(void)
+{
+    if (bt_state == BT_OFF)
+        return;
+    power(0);
+    bt_state = BT_OFF;
 }
 
 void bt_enable(int on)
@@ -153,12 +185,13 @@ void bt_connect(int i)
 {
     if (i < 0 || i >= bt_nfound || bt_state < BT_READY)
         return;
-    if (bt_state == BT_SCAN)
-        send('P', '0', '0', 0, 0);
+    send('P', '0', '0', 0, 0);                  /* the search stopped first, always */
     for (int k = 0; k < 6; k++)
         bt_addr[k] = bt_found[i].addr[k];
     bt_error = 0;
-    send('H', '0', '6', bt_addr, 6);
+    tries = 0;
+    connect_op = 'H';
+    t_try = millis() - 5500;                    /* CH06 in 500 ms, then again every 6 s */
     set_state(BT_CONNECT);
 }
 
@@ -224,6 +257,9 @@ static int frame(const uint8_t *f, int n)
         set_state(BT_READY);
         if (remembered() && !want_scan) {
             send('L', '0', '6', bt_addr, 6);
+            connect_op = 'L';
+            tries = 1;
+            t_try = millis();
             set_state(BT_CONNECT);
         } else if (want_scan)
             bt_scan();
@@ -334,7 +370,13 @@ void bt_service(void)
             bt_error = "no connection";
         set_state(BT_READY);
     }
-    if (bt_state >= BT_READY && bt_state != BT_SCAN && now - t_poll > 1000) {
+    if (bt_state == BT_CONNECT && remembered() && tries < 4 && now - t_try > 6000) {
+        t_try = now;                            /* (1.1v: the first one was not always taken) */
+        tries++;
+        send(connect_op, '0', '6', bt_addr, 6);
+    }
+    if (bt_state >= BT_READY && bt_state != BT_SCAN &&
+        now - t_poll > (bt_state == BT_CONNECT ? 3000u : 1000u)) {
         t_poll = now;
         send('Q', '0', '0', 0, 0);
     }
