@@ -20,6 +20,9 @@ struct key_ev {
 
 int key_poll(struct key_ev *e); /* the next event (e->type, also returned), EV_NONE: none */
 int key_held(void);             /* a key is down, as key_poll() sees it */
+/* FROST: when key_poll last gave an event, whichever screen asked: the main menu and the other
+ * screens take their keys themselves, and the screen timeout must count those too */
+extern uint32_t key_last_us;
 uint32_t key_held_us(void);     /* since the key held (or the last change) */
 int key_is_vol(int k);          /* VOL+ or VOL- */
 const char *key_name(int k);

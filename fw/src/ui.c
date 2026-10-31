@@ -363,6 +363,9 @@ void ui_main(void)
             }
             ev = EV_NONE;
         }
+        if ((int32_t)(key_last_us - t_key) > 0)
+            t_key = key_last_us;                /* FROST: keys of the menus count (no black */
+                                                /* screen on the way back from them) */
         if (ev != EV_NONE) {
             /* FROST: only Power switches the screen on; with it off, the keys still work
              * (volume, pause, next...) and the screen stays off */

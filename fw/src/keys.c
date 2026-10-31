@@ -172,12 +172,16 @@ static int plug_poll(int *src)
     return EV_NONE;
 }
 
+uint32_t key_last_us;
+
 int key_poll(struct key_ev *e)
 {
     e->key = KEY_NONE;
     e->type = poll(&e->key);
     if (e->type == EV_NONE)
         e->type = plug_poll(&e->key);
+    if (e->type != EV_NONE)
+        key_last_us = ticks();                  /* FROST: from any screen (ui.c's timeout) */
     return e->type;
 }
 
