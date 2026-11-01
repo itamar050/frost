@@ -41,19 +41,41 @@ static uint32_t bt_rx_r;
 
 /* As 1.1w (which found headphones; 1.1x's LSR-based version did not), at most 64 bytes a call:
  * the interrupt comes back for the rest */
+/* 1.2f: guarded against an interrupt that comes back with nothing to take (a suspect of the
+ * freezes when the module powers up): its cause cleared (line status: LSR, busy: USR), and
+ * after 2000 such in a row the interrupt is switched off and bt_service polls instead */
+static volatile int bt_empty_irqs, bt_polling;
+
 void BT_UART_IRQHandler(void)
 {
-    (void)REG(U_IIR);
-    for (int n = 0; n < 64 && (REG(U_USR) & 8); n++)
+    uint32_t iir = REG(U_IIR) & 0xf;
+    if (iir == 6)
+        (void)REG(U + 0x14);                    /* LSR */
+    int n = 0;
+    for (; n < 64 && (REG(U_USR) & 8); n++)
         bt_rx[bt_rx_w++ & 511] = (uint8_t)REG(U_DATA);
-    bt_rx_t = ticks();
+    if (n) {
+        bt_rx_t = ticks();
+        bt_empty_irqs = 0;
+    } else if (iir != 1 && ++bt_empty_irqs > 2000) {
+        REG(U_IER) = 0;
+        REG(0xe000e180u) = 1u << UART1_IRQ;     /* NVIC_ICER */
+        bt_polling = 1;
+    }
+}
+
+static void bt_poll_rx(void)
+{
+    int n = 0;
+    for (; n < 64 && (REG(U_USR) & 8); n++)
+        bt_rx[bt_rx_w++ & 511] = (uint8_t)REG(U_DATA);
+    if (n)
+        bt_rx_t = ticks();
 }
 
 static void uart_init(void)
 {
     REG(GRF_UART) = 0x02000000;                 /* UART1 on its A pins: GPIO2_C0/C1 */
-    iomux(2, 16, 1);
-    iomux(2, 17, 1);
     soft_reset(8, 1);
     udelay(1000);
     soft_reset(8, 0);
@@ -72,6 +94,19 @@ static void uart_init(void)
     REG(U_IER) = 0;
     REG(U_LCR) = 3;
     REG(U_SRR) = 6;
+    iomux(2, 16, 1);                            /* 1.2f: the pins after the set-up (EchoPod's */
+    iomux(2, 17, 1);                            /* order); the interrupt once the module is on */
+    bt_rx_r = bt_rx_w;
+    bt_empty_irqs = 0;
+    bt_polling = 0;
+}
+
+static void uart_irq_on(void)
+{
+    (void)REG(U_USR);                           /* anything pending from the power-up cleared */
+    (void)REG(U + 0x14);
+    while (REG(U_USR) & 8)
+        (void)REG(U_DATA);
     bt_rx_r = bt_rx_w;
     REG(U_IER) = 1;                             /* RX interrupt */
     REG(NVIC_ISER) = 1u << UART1_IRQ;
@@ -196,6 +231,8 @@ void bt_enable(int on)
     mdelay(100);
     uart_init();
     power(1);
+    mdelay(50);                                 /* 1.2f: the module's power settled first */
+    uart_irq_on();
     set_state(BT_BOOT);
 }
 
@@ -412,6 +449,14 @@ void bt_service(void)
     }
     if (bt_state == BT_OFF)
         return;
+    if (bt_polling) {                           /* 1.2f: the interrupt given up (logged once) */
+        static int said;
+        if (!said) {
+            said = 1;
+            log_printf("bt: UART interrupt storm, polling instead");
+        }
+        bt_poll_rx();
+    }
     if (bt_rx_r != bt_rx_w && ticks() - bt_rx_t > 4000)
         take_burst();
     uint32_t now = millis();

@@ -383,6 +383,8 @@ def main():
             dev = [d for d in BT_DEVS if d[0] == f[4:10]]
             if op == b"L" and opt("--bt-hp-off", None):
                 return                                           # --bt-hp-off: remembered one off
+            if op == b"L" and opt("--bt-late", None) and bt_now() // 1000 < int(opt("--bt-late", "0")):
+                return                                           # --bt-late MS: switched on then
             if opt("--bt-deaf", None) and not btm.get("deaf_done"):
                 btm["deaf_done"] = True                          # --bt-deaf: the first one lost
                 return

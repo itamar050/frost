@@ -239,6 +239,12 @@ Flat, Rock, Pop, Jazz, Classical, Bass boost, Vocal, Treble, and **Custom** (you
   the player is switched off; the wired volume is the one saved.
 
 ### Bluetooth (working since 1.2d)
+- **1.2f:** headphones that connect while a track plays got no sound (connecting first, then
+  PLAY, worked). The player now pauses for 2 s when they connect during the music and plays on,
+  the same order. Freezes when the module was switched on (at boot or from the menu): the UART's
+  interrupt is guarded (its cause cleared; after 2000 empty calls in a row it is switched off
+  and the module is polled, logged as "bt: UART interrupt storm"), and the module is powered
+  before its interrupt is enabled, in EchoPod's order. Not yet confirmed as the cause.
 **Confirmed on the player (2026-11-01): music plays through Bluetooth headphones** with the
 sound route at its default (1 of 4, as stock). 1.2c had left Bluetooth out of the build: pairing
 worked but no sound reached the headphones. 1.2d

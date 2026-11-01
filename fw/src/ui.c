@@ -364,6 +364,21 @@ void ui_main(void)
             log_printf("ui: Bluetooth: the track again at %u ms in 32-bit frames", at);
             full = 1;
         }
+        static int bt_hold;                     /* 1.2f: connected during the music: paused */
+        static uint32_t bt_hold_t;              /* 2 s, then on (as headphones connected */
+        if (bt_linked() && !bt_was && q_playing && !audio_paused)   /* first, then PLAY) */
+            bt_hold = 1;
+        if (bt_hold == 1 && audio.on && !audio_paused) {
+            audio_pause(1);
+            bt_hold = 2;
+            bt_hold_t = millis();
+            log_printf("ui: Bluetooth: paused 2 s for the headphones");
+        } else if (bt_hold == 2 && millis() - bt_hold_t > 2000) {
+            bt_hold = 0;
+            if (bt_linked() && audio.on && audio_paused)
+                audio_pause(0);
+            full = 1;
+        }
         if (bt_linked() != bt_was) {            /* 1.2a: a volume of its own while connected: */
             static int other = 80;              /* the module takes the DACs' line level: */
             int t = play_level;                 /* 1.2e: -40 dB to start with, not 0 dB */
