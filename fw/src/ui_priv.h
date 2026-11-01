@@ -173,6 +173,8 @@ void play_failed(const char *name, int code);
 void fail_text(int code, uint32_t why, const char **what, const char **hint);
 void volume(int d);
 extern int wired_level;
+#define VOL_FLOOR 180                           /* 1.2e: play_level: -90 dB the lowest, */
+#define VOL_MUTE  0xfe                          /* then muted (the DACs at -127 dB) */
 #ifndef SEEK_IDLE_MS
 #define SEEK_IDLE_MS 2000u
 #endif

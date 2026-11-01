@@ -230,6 +230,14 @@ Flat, Rock, Pop, Jazz, Classical, Bass boost, Vocal, Treble, and **Custom** (you
   response to 0.01 dB.
 - **Off (or Flat), nothing touches the samples:** the playback stays bit-perfect.
 
+### Volume (1.2e)
+- The volume goes from 0 dB down to **-90 dB**, in 1 dB steps; one more step down **mutes**
+  ("Mute" on the play screen), and one step up comes back to -90 dB. (Before: down to -127 dB,
+  inaudible well before the end.) 0 dB shows without a minus sign.
+- **Bluetooth headphones start at -40 dB** when they connect (1.2d started them at 0 dB: the
+  module takes the DACs' full line level). Bluetooth keeps a volume of its own, remembered until
+  the player is switched off; the wired volume is the one saved.
+
 ### Bluetooth (working since 1.2d)
 **Confirmed on the player (2026-11-01): music plays through Bluetooth headphones** with the
 sound route at its default (1 of 4, as stock). 1.2c had left Bluetooth out of the build: pairing

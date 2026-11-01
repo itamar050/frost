@@ -365,8 +365,8 @@ void ui_main(void)
             full = 1;
         }
         if (bt_linked() != bt_was) {            /* 1.2a: a volume of its own while connected: */
-            static int other = 0;               /* the module takes the DACs' line level, */
-            int t = play_level;                 /* 0 dB to start with (VOL changes it) */
+            static int other = 80;              /* the module takes the DACs' line level: */
+            int t = play_level;                 /* 1.2e: -40 dB to start with, not 0 dB */
             play_level = other;
             other = t;
             wired_level = bt_linked() ? other : -1;     /* (saved instead of the BT one) */

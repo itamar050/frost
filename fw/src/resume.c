@@ -191,8 +191,10 @@ void resume_load(void)
     int full = xok && !old;                     /* the selections in full (FROST) */
 #define SEL(i) (full ? (int)x->sel[i] : (int)r->sel[i])
 #define TOP(i) (full ? (int)x->top[i] : (int)r->top[i])
-    if (r->level <= 0xfe)
+    if (r->level <= VOL_FLOOR || r->level == VOL_MUTE)
         play_level = (int)r->level;
+    else if (r->level < VOL_MUTE)
+        play_level = VOL_FLOOR;                 /* (1.2e: below -90 dB before) */
     if ((r->mode & 0xff) < MODE_COUNT)
         play_mode = (int)(r->mode & 0xff);
     if ((r->mode >> 8) < RG_MODES)

@@ -37,6 +37,8 @@ int rg_src;                                     /* RG_TRACK or RG_ALBUM: the gai
 
 static int out_level(void)                      /* the DAC attenuation: the volume, then the gain */
 {
+    if (play_level == VOL_MUTE)                 /* 1.2e: muted, whatever the gain */
+        return VOL_MUTE;
     int v = play_level - rg_steps;
     return v < 0 ? 0 : v > 0xfe ? 0xfe : v;
 }
@@ -384,11 +386,14 @@ void seek_end(int go)
 
 void volume(int d)
 {
-    play_level += d;
+    if (play_level == VOL_MUTE)                 /* 1.2e: -90 dB at the bottom, one step */
+        play_level = d < 0 ? VOL_FLOOR : VOL_MUTE;  /* more mutes, one step up comes back */
+    else if (play_level + d > VOL_FLOOR)
+        play_level = play_level < VOL_FLOOR ? VOL_FLOOR : VOL_MUTE;
+    else
+        play_level += d;
     if (play_level < 0)
         play_level = 0;
-    if (play_level > 0xfe)
-        play_level = 0xfe;
     if (audio.on && audio.vol != 0xff && !audio_paused)
         audio_volume((uint8_t)out_level(), 0);
 }

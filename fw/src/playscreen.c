@@ -706,9 +706,13 @@ void draw_playing(int full)
     lcd_fill(x, 82, TX1 - x, 16, BG);
     tape_bar(now_ms(), player_heard.length_ms, -1);
     /* the volume and the ReplayGain, right of the format */
-    p = put_str(b, "-");
-    p = put_dec(p, (uint32_t)play_level / 2);
-    p = put_str(p, " dB");
+    if (play_level == VOL_MUTE)                 /* 1.2e: "Mute", and 0 dB without a sign */
+        p = put_str(b, "Mute");
+    else {
+        p = play_level ? put_str(b, "-") : b;
+        p = put_dec(p, (uint32_t)play_level / 2);
+        p = put_str(p, " dB");
+    }
     if (rg_mode != RG_MODE_OFF && rg_tag != RG_NONE) {
         unsigned a = (unsigned)(rg_steps < 0 ? -rg_steps : rg_steps);
         p = put_str(p, "  RG");
