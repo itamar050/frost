@@ -18,7 +18,7 @@
 #define NVIC_ISER 0xe000e100u
 #define UART1_IRQ 25
 
-int bt_on, bt_state, bt_save_due;
+int bt_on, bt_state, bt_save_due, bt_screen_open;
 uint8_t bt_addr[6];
 char bt_name[33];
 struct bt_dev bt_found[BT_FOUND_MAX];
@@ -27,6 +27,7 @@ uint32_t bt_rev;
 char bt_last[24];
 const char *bt_error;
 
+static int uart_up;                             /* 1.2g: UART1's clock on (uart_init) */
 static int variant, key, dropped, playing_sent = -1, want_scan;
 static uint32_t t_state, t_poll, t_try;
 static int tries;
@@ -81,6 +82,7 @@ static void uart_init(void)
     soft_reset(8, 0);
     clk_gate(0x1d, 1);
     clk_gate(0x89, 1);
+    uart_up = 1;
     REG(CRU_UART1) = 0x00c00040;                /* from the 24 MHz crystal, divided by 1 */
     REG(CRU_UART1) = 0x003f0000;
     REG(U_SRR) = 7;
@@ -156,8 +158,10 @@ static void power(int on)
     gpio_dir(2, 7, 1);
     gpio_set(2, 7, on);
     if (!on) {                                  /* the UART pins low with it, as the stock */
-        REG(U_IER) = 0;
         REG(0xe000e180u) = 1u << UART1_IRQ;     /* NVIC_ICER: its interrupt off too */
+        if (uart_up)                            /* 1.2g: never a register of the UART while */
+            REG(U_IER) = 0;                     /* its clock is off (the bus can hang): the */
+                                                /* first switch-on after boot did that */
         for (int p = 16; p <= 17; p++) {
             iomux(2, p, 0);
             gpio_dir(2, p, 1);
@@ -216,6 +220,11 @@ void bt_shutdown(void)
         return;
     power(0);
     bt_state = BT_OFF;
+}
+
+void bt_early_off(void)                         /* 1.2g: at boot, the module held off */
+{                                               /* (powered off for the seconds before it */
+    power(0);                                   /* starts, not half-powered by the pins) */
 }
 
 void bt_enable(int on)
@@ -477,7 +486,29 @@ void bt_service(void)
             bt_error = "no connection";
         set_state(BT_READY);
     }
-    if (bt_state == BT_CONNECT && remembered() && tries < 4 && now - t_try > 6000) {
+    /* 1.2g: the headphones remembered, not connected: asked for again 5 s on (they may
+     * be switched on after the player), 10 rounds of 50 s; every third round the module is
+     * restarted first, as EchoPod does for a connection that stalls. Not while the
+     * Bluetooth screen is open (a search, a pairing) */
+    static int rounds;
+    if (bt_state == BT_LINKED)
+        rounds = 0;
+    if (bt_state == BT_READY && remembered() && !bt_screen_open && rounds < 10 &&
+        now - t_state > 5000) {
+        rounds++;
+        log_printf("bt: the headphones asked for again (%d)", rounds);
+        if (rounds % 3 == 0) {
+            bt_enable(1);                       /* CV, then CL by itself */
+            return;
+        }
+        send('L', '0', '6', bt_addr, 6);
+        connect_op = 'L';
+        tries = 1;
+        t_try = now;
+        set_state(BT_CONNECT);
+    }
+    if (bt_state == BT_CONNECT && remembered() && tries < (connect_op == 'L' ? 8 : 4) &&
+        now - t_try > 6000) {                   /* (1.2g: a reconnection: CL all along) */
         t_try = now;                            /* (1.1v: the first one was not always taken) */
         tries++;
         send(connect_op, '0', '6', bt_addr, 6);

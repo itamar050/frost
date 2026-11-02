@@ -374,6 +374,7 @@ void bt_screen(void)
 {
     int sel = 0, top = 0, dirty = 1;
     uint32_t rev = bt_rev - 1;
+    bt_screen_open = 1;
     for (;;) {
         int n = 2 + (bt_linked() ? 1 : bt_nfound);
         if (sel >= n)
@@ -446,8 +447,10 @@ void bt_screen(void)
                 bt_route_apply();
             } else
                 bt_connect(sel - 2);
-        } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS)
+        } else if ((k == KEY_BACK || k == KEY_MENU) && ev == EV_PRESS) {
+            bt_screen_open = 0;
             return;
+        }
     }
 }
 

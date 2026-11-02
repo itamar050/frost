@@ -409,6 +409,7 @@ int main(void)
     gpio_dir(PIN_JACK35, 0);
     gpio_dir(2, 8, 0);
     gpio_dir(2, 3, 0);
+    bt_early_off();                             /* 1.2g: the Bluetooth module off at once */
     boot_by_power = power_key();                /* 1.1x: seen at once, not 1.5 s later (when */
                                                 /* the key may be released already) */
     fast = clock_init();

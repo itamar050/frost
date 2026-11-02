@@ -30,6 +30,7 @@ struct bt_dev {
 extern int bt_on;                       /* the setting (kept with the resume state) */
 extern int bt_state;
 extern int bt_save_due;                 /* the UI saves the resume state */
+extern int bt_screen_open;              /* 1.2g: no reconnection rounds meanwhile */
 extern uint8_t bt_addr[6];              /* the device remembered: reconnected at power-up */
 extern char bt_name[33];                /* the device connected */
 extern struct bt_dev bt_found[BT_FOUND_MAX];
@@ -39,6 +40,7 @@ extern char bt_last[24];                /* the last frame received, printable (t
 extern const char *bt_error;            /* the last failure, or 0 */
 
 void bt_enable(int on);
+void bt_early_off(void);
 void bt_shutdown(void);                 /* the module off before the player (bt_on kept) */
 extern int bt_route;                    /* 0..3: the output pins while connected (a test) */
 int bt_pin_mute(void);
@@ -63,6 +65,7 @@ void BT_UART_IRQHandler(void);
 static inline int bt_linked(void) { return 0; }
 static inline void bt_service(void) { }
 static inline void bt_shutdown(void) { }
+static inline void bt_early_off(void) { }
 static inline int bt_pin_mute(void) { return 0; }
 static inline int bt_pin_amp(void) { return 1; }
 #endif

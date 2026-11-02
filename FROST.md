@@ -239,6 +239,12 @@ Flat, Rock, Pop, Jazz, Classical, Bass boost, Vocal, Treble, and **Custom** (you
   the player is switched off; the wired volume is the one saved.
 
 ### Bluetooth (working since 1.2d)
+- **1.2g:** the remembered headphones connect by themselves when they are switched on after the
+  player: asked for every 6 s while connecting, and again 5 s after a try gives up, for 10
+  rounds (about 8 minutes; every third round restarts the module first). Not while the
+  Bluetooth screen is open. The module is also held off from the first moment of boot, and its
+  UART's registers are no longer touched while the UART's clock is off: the first switch-on
+  after boot did that, which can hang the chip's bus (a suspect of the freezes).
 - **1.2f:** headphones that connect while a track plays got no sound (connecting first, then
   PLAY, worked). The player now pauses for 2 s when they connect during the music and plays on,
   the same order. Freezes when the module was switched on (at boot or from the menu): the UART's
