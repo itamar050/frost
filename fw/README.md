@@ -33,7 +33,6 @@ ideographs and Hangul, 37 690 glyphs. `tools/mkfusion.py` converts its BDF into 
 in the image, read glyph by glyph from the eMMC with a cache; printable ASCII is also built
 into the code. Any copy of the image must ship with that license.
 
-
 Releases are made by GitHub (`.github/workflows/release.yml`): a push to `main` that changes
 `FW_VERSION` in `src/version.h` runs `make check`, builds `HIFIEC70.IMG` and publishes it as
 release `v<version>` with `docs/promo/install-guide.pdf`. The notes are
