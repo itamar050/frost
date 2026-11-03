@@ -1,0 +1,116 @@
+# A release for each new firmware version: when FW_VERSION in fw/src/version.h changes on main,
+# make check, build HIFIEC70.IMG (same toolchain as check.yml: Debian's gcc-arm-none-eabi
+# 14.2.rel1, dated by the last commit, so byte-identical to a local build of that commit) and
+# publish it as release v<version> with docs/promo/install-guide.pdf. A version that already has a
+# release is left alone. Notes: docs/release-notes/<version>.md when it exists, otherwise the
+# message of the commit that changed the version (without its trailers).
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths: [fw/src/version.h]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      exists: ${{ steps.v.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # the release build's version is the last FW_VERSION (the #else branch)
+          V=$(sed -n 's/^#define FW_VERSION "\([^"]*\)".*/\1/p' fw/src/version.h | tail -1)
+          echo "version: $V"
+          if ! printf '%s' "$V" | grep -Eq '^[0-9]+\.[0-9]+[a-z]?$'; then
+            echo "::error::unexpected FW_VERSION '$V'"; exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v$V already exists: nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
+    runs-on: ubuntu-24.04
+    container: debian:trixie
+    steps:
+      - name: Tools
+        run: |
+          apt-get update -q
+          apt-get install -qy --no-install-recommends git ca-certificates make gcc libc6-dev \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi python3 python3-venv
+          python3 -m venv /opt/venv
+          /opt/venv/bin/pip install -q ruff==0.17.3 codespell==2.4.3
+          echo /opt/venv/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+      - name: Publication rules
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sh fw/tools/pubcheck.sh
+      - name: make check
+        run: make -C fw check
+      - name: Image
+        run: |
+          rm -rf fw/build
+          make -C fw -j"$(nproc)" | tee build.log
+          grep '^wrote' build.log >> "$GITHUB_STEP_SUMMARY"
+          grep -q "date $(git log -1 --format=%cs)" build.log || { echo "::error::image not dated by the commit"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-image
+          path: fw/build/HIFIEC70.IMG
+          retention-days: 7
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-image
+          path: out
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          SHA=$(sha256sum out/HIFIEC70.IMG | cut -d' ' -f1)
+          if [ -f "docs/release-notes/$V.md" ]; then
+            cat "docs/release-notes/$V.md" > notes.md
+          else
+            # message of the commit that last changed the version, trailers removed
+            C=$(git log -1 --format=%H -- fw/src/version.h)
+            MSG=$(git log -1 --format=%B "$C" | sed -E '/^(Co-Authored-By|Claude-Session|Signed-off-by):/Id' \
+              | sed -E "1s/^FROST $V: *//")
+            printf '%s\n' "$MSG" > notes.md
+          fi
+          printf '\nInstall: copy HIFIEC70.IMG to the player, then Main menu > Install a firmware (.IMG).\n\nSHA-256 of HIFIEC70.IMG: `%s`\n' "$SHA" >> notes.md
+          cat notes.md
+          ASSETS="out/HIFIEC70.IMG"
+          [ -f docs/promo/install-guide.pdf ] && ASSETS="$ASSETS docs/promo/install-guide.pdf"
+          # shellcheck disable=SC2086
+          gh release create "v$V" $ASSETS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "FROST $V" --notes-file notes.md
+          echo "Published [v$V]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/v$V), SHA-256 \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
