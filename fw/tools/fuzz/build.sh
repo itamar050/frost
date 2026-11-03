@@ -29,7 +29,7 @@ opus)   OD=$TP/opus
         INC="-I$FW/hifi/opus -I$OD/include -I$OD/celt -I$OD/silk -I$OD/silk/fixed -I$OD"
         SRC="$FW/hifi/oggpage.c $FW/hifi/codec_opus.c"
         for v in CELT_SOURCES SILK_SOURCES SILK_SOURCES_FIXED OPUS_SOURCES; do
-          SRC="$SRC $(make -s -f - -C $OD print V=$v <<MK
+          SRC="$SRC $(make -s --no-print-directory -f - -C $OD print V=$v <<MK
 include celt_sources.mk
 include silk_sources.mk
 include opus_sources.mk

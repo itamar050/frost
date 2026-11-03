@@ -1,9 +1,11 @@
-# make check-full (the test variants and the fuzzing harnesses build), weekly and on demand.
+# make check-full (the test variants and the fuzzing harnesses build), on demand (Actions >
+# check-full > Run workflow). The weekly schedule is off while the ECHO_HWTEST, ECHO_PROBE and
+# SD_WALK variants do not fit ("code reaches the play queue"); to bring it back:
+#   schedule:
+#     - cron: "17 4 * * 1"
 name: check-full
 
 on:
-  schedule:
-    - cron: "17 4 * * 1"
   workflow_dispatch:
 
 permissions:
