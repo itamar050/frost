@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HOTFIX! Nexus Meltdown</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #07050c; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+</style>
+</head>
+<body>
+<canvas id="screen" width="320" height="224"></canvas>
+<!-- Engine -->
+<script src="src/core.js"></script>
+<script src="src/input.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/music.js"></script>
+<script src="src/font.js"></script>
+<script src="src/gfx.js"></script>
+<script src="src/art.js"></script>
+<script src="src/themes.js"></script>
+<script src="src/level.js"></script>
+<script src="src/fx.js"></script>
+<!-- Game objects -->
+<script src="src/player.js"></script>
+<script src="src/enemies.js"></script>
+<script src="src/bosses.js"></script>
+<script src="src/objects.js"></script>
+<!-- Content -->
+<script src="src/levels/stage1.js"></script>
+<script src="src/levels/stage2.js"></script>
+<script src="src/levels/stage3.js"></script>
+<script src="src/levels/stage4.js"></script>
+<!-- Session -->
+<script src="src/world.js"></script>
+<script src="src/scenes.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
