@@ -1,0 +1,157 @@
+<!doctype html>
+<!-- FROST flyer (1080 x 1350). The screens in screens/ are the firmware's own, from tools/emu_fw.py
+     (FROST 1.2j, a 24-bit / 96 kHz test album). Rendered by render-flyer.js to flyer.png (2x) and
+     flyer.pdf. Fonts: Inter Display, Inter, JetBrains Mono (SIL OFL). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FROST flyer</title>
+<style>
+  :root {
+    --bg: #0A1120; --ink: #E8F1FF; --soft: #C7D3E6; --mute: #8FA0BC; --ice: #7FD3FF;
+    --orange: #FF8A3D; --line: #22314F; --magenta: #FF4FD0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1350px; background: var(--bg); overflow: hidden; }
+  body { position: relative; color: var(--ink); font-family: Inter, 'Helvetica Neue', Arial, sans-serif; }
+  .px { image-rendering: pixelated; display: block; }
+
+  /* the backdrop: a deep glow, snowflakes, a laser grid fading in at the foot */
+  .glow { position: absolute; inset: 0;
+    background: radial-gradient(900px 700px at 78% 22%, rgba(127,211,255,.13), transparent 60%),
+                radial-gradient(700px 500px at 12% 62%, rgba(255,79,208,.10), transparent 62%),
+                radial-gradient(800px 420px at 50% 112%, rgba(255,79,208,.22), transparent 70%); }
+  .grid { position: absolute; left: -300px; right: -300px; bottom: -40px; height: 300px;
+    transform: perspective(380px) rotateX(62deg); transform-origin: 50% 100%;
+    background-image: linear-gradient(rgba(255,79,208,.55) 2px, transparent 2px),
+                      linear-gradient(90deg, rgba(255,79,208,.55) 2px, transparent 2px);
+    background-size: 60px 46px;
+    -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.55), transparent 85%); }
+  .flake { position: absolute; stroke: #1E2E4C; stroke-width: 2.4; fill: none; stroke-linecap: round; }
+  .stars span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #CFE6FF; opacity: .55; }
+
+  /* top line */
+  .top { position: absolute; top: 48px; left: 72px; right: 72px; display: flex; justify-content: space-between;
+    font: 500 21px 'JetBrains Mono', monospace; letter-spacing: 4px; }
+  .top .v { color: var(--ice); }
+  .top .v b { color: var(--orange); font-weight: 700; }
+  .top .for { color: var(--mute); }
+
+  /* the wordmark */
+  .word { position: absolute; top: 70px; left: 60px; font: 900 216px/1 'Inter Display', Inter, sans-serif;
+    letter-spacing: -8px;
+    background: linear-gradient(180deg, #FFFFFF 0%, #E3F3FF 42%, #9FDCFF 72%, #6CC6FF 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 10px 36px rgba(127,211,255,.28)); }
+  .tag { position: absolute; top: 296px; left: 74px; font: 800 42px/1.1 'Inter Display', Inter, sans-serif;
+    letter-spacing: -1px; }
+  .tag em { font-style: normal; color: var(--orange); }
+
+  /* the hero: three decks fanned out, the real screens */
+  .fan { position: absolute; top: 384px; left: 40px; width: 430px; height: 520px; }
+  .dev { position: absolute; padding: 12px; border-radius: 26px;
+    background: linear-gradient(160deg, #26355A, #121B30 55%, #0D1426);
+    box-shadow: 0 30px 60px rgba(0,0,0,.55), inset 0 0 0 2px #33466F, inset 0 2px 0 #4A5F8E; }
+  .dev img { border-radius: 6px; }
+  .dev.back1 { left: 0; top: 34px; transform: rotate(-9deg) scale(.86); opacity: .9; }
+  .dev.back2 { left: 168px; top: 34px; transform: rotate(9deg) scale(.86); opacity: .9; }
+  .dev.front { left: 82px; top: 0; z-index: 2; box-shadow: 0 40px 80px rgba(0,0,0,.65), 0 0 0 1px #4A5F8E,
+    0 0 60px rgba(255,79,208,.25); }
+  .new { position: absolute; z-index: 3; left: 232px; top: -22px; transform: rotate(6deg);
+    background: var(--orange); color: #1A0D04; font: 900 20px/1 'Inter Display', Inter, sans-serif;
+    letter-spacing: 1px; padding: 10px 14px; border-radius: 999px; white-space: nowrap; box-shadow: 0 10px 24px rgba(255,138,61,.35); }
+
+  /* features */
+  .feat { position: absolute; top: 380px; left: 490px; width: 540px; }
+  .f { margin-bottom: 15px; }
+  .f h3 { font: 900 33px/1.05 'Inter Display', Inter, sans-serif; letter-spacing: -.5px; display: flex; align-items: center; gap: 12px; }
+  .f p { margin-top: 6px; font: 400 18px/1.38 Inter, sans-serif; color: var(--soft); }
+  .f p b { color: var(--ink); font-weight: 600; }
+  .o { color: var(--orange); } .i { color: var(--ice); } .m { color: var(--magenta); } .w { color: var(--ink); }
+  .pill { font: 800 13px/1 'JetBrains Mono', monospace; letter-spacing: 2px; color: #1A0D04; background: var(--orange);
+    padding: 6px 8px; border-radius: 6px; }
+
+  /* the themes */
+  .th { position: absolute; top: 932px; left: 72px; right: 72px; }
+  .th h2 { font: 900 30px/1 'Inter Display', Inter, sans-serif; display: flex; align-items: baseline; gap: 14px; }
+  .th h2 span { font: 500 17px 'JetBrains Mono', monospace; letter-spacing: 2px; color: var(--mute); }
+  .shots { margin-top: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .shot { position: relative; border-radius: 10px; overflow: hidden; box-shadow: 0 12px 26px rgba(0,0,0,.5), 0 0 0 2px #22314F; }
+  .shot img { width: 100%; }
+  .shot i { position: absolute; left: 8px; bottom: 6px; font: 700 12px 'JetBrains Mono', monospace; font-style: normal;
+    color: #fff; background: rgba(6,10,20,.78); padding: 3px 6px; border-radius: 4px; letter-spacing: 1px; }
+
+  /* formats, footer */
+  .fmt { position: absolute; top: 1236px; left: 72px; right: 72px; display: flex; flex-wrap: nowrap; gap: 8px; }
+  .fmt span { font: 700 14px/1 'JetBrains Mono', monospace; color: var(--soft); border: 2px solid #2A3B5C;
+    background: rgba(10,17,32,.7); padding: 6px 10px; border-radius: 999px; }
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .foot .cta { font: 900 38px/1 'Inter Display', Inter, sans-serif; letter-spacing: -1px; }
+  .foot .url { font: 500 19px 'JetBrains Mono', monospace; color: var(--soft); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="grid"></div>
+<div class="stars" id="stars"></div>
+<svg class="flake" style="left:806px; top:84px" width="230" height="230" viewBox="-115 -115 230 230">
+  <g id="arm"><path d="M0 0V-105M0 -70l-22 -22M0 -70l22 -22M0 -36l-14 -14M0 -36l14 -14"/></g>
+  <use href="#arm" transform="rotate(60)"/><use href="#arm" transform="rotate(120)"/>
+  <use href="#arm" transform="rotate(180)"/><use href="#arm" transform="rotate(240)"/><use href="#arm" transform="rotate(300)"/>
+</svg>
+
+<div class="top"><div class="v">CUSTOM FIRMWARE · <b>v1.2j</b></div><div class="for">FOR SNOWSKY ECHO MINI</div></div>
+<div class="word">FROST</div>
+<div class="tag">Your music, <em>ice cold</em> and bit-perfect.</div>
+
+<div class="fan">
+  <div class="dev back1"><img class="px" src="screens/deck-elvis.png" width="238" height="448" alt=""></div>
+  <div class="dev back2"><img class="px" src="screens/deck-elvis68.png" width="238" height="448" alt=""></div>
+  <div class="dev front"><img class="px" src="screens/deck-chrome84.png" width="238" height="448" alt="The portrait tape deck, Chrome '84 theme"></div>
+  <div class="new">NEW · PORTRAIT</div>
+</div>
+
+<div class="feat">
+  <div class="f"><h3><span class="o">Hold it upright</span></h3>
+    <p>Portrait mode turns the play screen into a <b>tape deck</b>: your album on the cassette, live meters, and the buttons turn with it.</p></div>
+  <div class="f"><h3><span class="i">26 themes</span></h3>
+    <p>Elvis, Elvis '68, <b>Chrome '84</b>, EVA, Green Hill, Soundwave and more, in both orientations.</p></div>
+  <div class="f"><h3><span class="w">Up to 192 kHz</span></h3>
+    <p>Bit-perfect lossless, DSD256, volume set in the DACs. Real meters from what you hear.</p></div>
+  <div class="f"><h3><span class="m">10-band EQ</span> <span class="i" style="font-size:33px">· Bluetooth</span></h3>
+    <p>Presets plus custom, fully bypassed when off. Pair your headphones and go.</p></div>
+  <div class="f"><h3><span class="o">Copy. Restart.</span> <span class="w">Done.</span></h3>
+    <p>Drop the new firmware on the player and restart: it installs itself and tidies up.</p></div>
+</div>
+
+<div class="th">
+  <h2><span class="w" style="font:inherit">Pick a look</span><span>26 THEMES · REAL SCREENS</span></h2>
+  <div class="shots">
+    <div class="shot"><img class="px" src="screens/land-classic.png" alt=""><i>CLASSIC</i></div>
+    <div class="shot"><img class="px" src="screens/land-elvis.png" alt=""><i>ELVIS</i></div>
+    <div class="shot"><img class="px" src="screens/land-elvis68.png" alt=""><i>ELVIS '68</i></div>
+    <div class="shot"><img class="px" src="screens/land-chrome84.png" alt=""><i>CHROME '84</i></div>
+    <div class="shot"><img class="px" src="screens/land-neon.png" alt=""><i>NEON</i></div>
+    <div class="shot"><img class="px" src="screens/land-greenhill.png" alt=""><i>GREEN HILL</i></div>
+    <div class="shot"><img class="px" src="screens/land-snow.png" alt=""><i>SNOW</i></div>
+    <div class="shot"><img class="px" src="screens/land-soundwave.png" alt=""><i>SOUNDWAVE</i></div>
+  </div>
+</div>
+
+<div class="fmt"><span>FLAC</span><span>ALAC</span><span>WAV</span><span>AIFF</span><span>DSD256</span><span>APE</span><span>MP3</span><span>AAC</span><span>Opus</span><span>Ogg</span><span>MPC</span><span>WMA</span></div>
+
+<div class="foot"><div class="cta">Copy. Restart. <span class="o">Chill.</span></div><div class="url">github.com/itamar050/frost</div></div>
+
+<script>
+  /* a few fixed stars (no randomness: the same flyer every time) */
+  const s = document.getElementById('stars');
+  [[120,40],[260,22],[440,58],[690,30],[760,70],[1010,46],[48,380],[1040,360],[980,560],[30,700],
+   [1050,760],[560,30]].forEach(([x, y], k) => {
+    const d = document.createElement('span');
+    d.style.left = x + 'px'; d.style.top = y + 'px';
+    if (k % 3 === 0) { d.style.width = d.style.height = '4px'; d.style.opacity = '.8'; }
+    s.appendChild(d);
+  });
+</script>
+</body>
+</html>

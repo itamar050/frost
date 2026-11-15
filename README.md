@@ -2,7 +2,7 @@
 
 **Custom firmware for the SNOWSKY Echo Mini (8 GB).** Version 1.2d.
 
-<p align="center"><img src="docs/promo/flyer.png" alt="FROST flyer: 24 themes, 10-band EQ, bit-perfect playback up to 192 kHz, Bluetooth" width="540"></p>
+<p align="center"><img src="docs/promo/flyer.png" alt="FROST flyer: portrait tape deck, 26 themes, 10-band EQ, bit-perfect playback up to 192 kHz, Bluetooth" width="540"></p>
 
 FROST is a fork of [echo-mini-newfw](https://github.com/berettavexee/echo-mini-newfw) 0.95 by
 berettavexee, a from-scratch firmware for the Rockchip RKNanoD inside the player. It keeps all
