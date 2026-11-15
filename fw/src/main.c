@@ -439,6 +439,7 @@ int main(void)
                !gpio_get(PIN_JACK44), power_key());
     log_flush();
     battery_check_boot();
+    boot_install();                             /* 1.2i: HIFIEC70.IMG in the root: installed */
     charge_screen(1);                           /* switched on by the USB cable: until PLAY held */
     draw_static();
     draw_status();

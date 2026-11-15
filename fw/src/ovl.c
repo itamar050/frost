@@ -5,6 +5,7 @@
 #include "audio.h"
 #include "board.h"
 #include "emmc.h"
+#include "fat.h"
 #include "lcd.h"
 #include "log.h"
 #include "ovl.h"
@@ -94,6 +95,22 @@ void sys_usb(int writable)
         return;
     }
     o->usb(writable);
+    ovl_done(o);
+}
+
+/* At start-up: HIFIEC70.IMG in the internal root is installed, then deleted (install.c); the
+ * overlay is read only when the file is there */
+void boot_install(void)
+{
+    static const char name[] = "HIFIEC70.IMG";
+    struct fat_file f;
+    if (storage_err || volume_err || vol.exfat || fat_find_root(name, &f))
+        return;
+    log_printf("ovl: %s in the root: installing at start-up", name);
+    const struct ovl_head *o = ovl_load();
+    if (!o)
+        return;                                 /* the file stays; the player starts as usual */
+    o->boot_install(name);                      /* restarts the player after an installation */
     ovl_done(o);
 }
 

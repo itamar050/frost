@@ -7,7 +7,9 @@ Version 1.2d · SNOWSKY Echo Mini (8 GB). A printable version: [install-guide.pd
 1. Charge the player and back up anything important on it.
 2. Connect it to your computer by USB. It shows up as a disk.
 3. Copy `HIFIEC70.IMG` to the top folder of the player's disk, then eject it safely and unplug.
-4. On the player, hold **MENU** to open the main menu and choose **Install a firmware (.IMG)**.
+4. Switch the player off (hold Power 2 s) and on again. With FROST 1.2i or later, it finds the
+   file, checks it, installs it after a 3-second countdown (BACK: not now), deletes it and
+   restarts. With an older FROST, hold **MENU** instead and choose **Install a firmware (.IMG)**.
 5. Wait for the player to finish and restart. Do not unplug or power off while it writes.
 
 Coming from stock firmware, or something went wrong? Follow the loader route in

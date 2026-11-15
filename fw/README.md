@@ -54,7 +54,7 @@ already has a release is skipped.
 |---|---|
 | `main.c` | start-up, storage, power and screen, test screen, fault screen |
 | `install.c`, `usbmode.c` | firmware installer; USB disk mode and its screen |
-| `ovl.c`, `ovl.h`, `ovl_head.c`, `ovl.ld` | the overlay: the installer (`install.c`, `update.c`), the USB disk (`usbmode.c`, `usb.c`, `msc.c`) and the charging screen (`charge.c`) are linked apart, stored in the image (header +0x160) and loaded into the DAC ring's RAM only when used, with the audio stopped; checked against the main code's sum, from FW1 else FW2 |
+| `ovl.c`, `ovl.h`, `ovl_head.c`, `ovl.ld` | the overlay: the installer (`install.c`, `update.c`), the USB disk (`usbmode.c`, `usb.c`, `msc.c`) the charging screen (`charge.c`) and the install at start-up (`install.c`, `fatdel.c`: HIFIEC70.IMG in the root installed, then deleted; FAT32 only, its order safe against a power cut, tested by `tools/fatdel_test.sh` on real volumes) are linked apart, stored in the image (header +0x160) and loaded into the DAC ring's RAM only when used, with the audio stopped; checked against the main code's sum, from FW1 else FW2 |
 | `keys.c` | key ladder debouncing; events for the screens (press, long, repeat, chord, plugs in/out) |
 | `ui.c` | the main loop: events to the screen shown, drawing, power saving (shared state: `ui_priv.h`) |
 | `browser.c` | top level (internal memory, microSD card), folder listings, path, browser screen and keys |

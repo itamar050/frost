@@ -382,8 +382,12 @@ Slot words: `play` `play_hold` `back` `back_hold` `menu` `menu_hold` `vol_up` `v
 2. **From the stock firmware:** copy `HIFIEC70.IMG` alone to the root of the internal memory,
    eject the player, and restart it. The stock updater installs it, the same way newfw is
    installed.
-   **From newfw or FROST:** copy the image under any name, for example `FROST10B.IMG`, then go
-   to Main menu → Install a firmware.
+   **From FROST 1.2i on:** copy `HIFIEC70.IMG` to the root and restart the player: it checks
+   the file, installs it after a 3-second countdown (BACK: not now), deletes it and restarts.
+   Already installed: the file is only deleted. Not a valid image, or the battery under 3.6 V
+   without the cable: a message, and the file stays.
+   **From newfw, an older FROST, or any other name:** copy the image, for example
+   `FROST10B.IMG`, then go to Main menu → Install a firmware.
 3. Keep a stock image on the player under a name that neither firmware installs on its own,
    such as `STOCK39.IMG`. Going back to stock is then an install from the menu.
 4. **Recovery** if the player doesn't start: hold VOL- while you plug in the USB cable on the

@@ -103,7 +103,23 @@ int fw_check(struct fat_file *f, struct fw_info *info, progress_fn progress)
             progress(0, o, info->fw_size);
         wdt_kick();
     }
+    info->crc = stored;
     return crc == stored ? 0 : UPD_ECRC;
+}
+
+/* FROST 1.2i: 1 when FW1 already holds the image fw_check() accepted: its first fw_size bytes
+ * have the image's CRC (the CRC word itself is not written to a copy) */
+int fw_installed(const struct fw_info *info)
+{
+    uint32_t crc = 0;
+    crc_init();
+    for (uint32_t o = 0; o < info->fw_size; o += CHUNK) {
+        if (emmc_read(EMMC_FW1 + o / 512, CHUNK / 512, buf))
+            return 0;
+        crc = crc_update(crc, (const uint8_t *)buf, CHUNK);
+        wdt_kick();
+    }
+    return crc == info->crc;
 }
 
 /* Writes the image bytes [from, fw_size) at sector 'dst', each chunk read back */

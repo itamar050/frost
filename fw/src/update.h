@@ -16,6 +16,7 @@ struct fw_info {
     uint16_t year;              /* BCD date of the header */
     uint8_t month, day;
     int two_copies;             /* fits in one copy: FW2 is written too */
+    uint32_t crc;               /* 1.2i: the CRC stored after fw_size bytes */
 };
 
 /* progress(stage, done, total): stage 0 = CRC check, 1 = FW2, 2 = FW1 */
@@ -24,5 +25,6 @@ typedef void (*progress_fn)(int stage, uint32_t done, uint32_t total);
 int fw_check(struct fat_file *f, struct fw_info *info, progress_fn progress);
 int fw_install(struct fat_file *f, const struct fw_info *info, progress_fn progress);
 const char *upd_error(int e);
+int fw_installed(const struct fw_info *info);   /* 1.2i: FW1 already holds this image */
 
 #endif

@@ -34,7 +34,8 @@ a new interface, more formats and an equalizer.
 ## Quick install
 
 1. Copy `HIFIEC70.IMG` to the top folder of the player's disk over USB, then eject.
-2. On the player, hold **MENU** and choose **Install a firmware (.IMG)**.
+2. Switch the player off and on: from FROST 1.2i on, it installs the file by itself and deletes
+   it. With an older FROST, hold **MENU** and choose **Install a firmware (.IMG)**.
 3. Wait for it to finish and restart.
 
 The full illustrated guide: [INSTALL.md](INSTALL.md), printable as [install-guide.pdf](docs/promo/install-guide.pdf)

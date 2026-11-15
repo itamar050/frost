@@ -11,6 +11,7 @@
 #include "update.h"
 #include "keymap.h"
 #include "ovl.h"
+#include "fatdel.h"
 
 #define MAX_IMG 32
 #define IMG_ROWS 8                              /* rows of 16 px from y = 18, above the help line */
@@ -169,4 +170,103 @@ static void firmware_menu(void)
 void ovl_install(void)                          /* (1.2i: in the overlay, ovl.h) */
 {
     firmware_menu();
+}
+
+/* ---- FROST 1.2i: installing at start-up ----
+ * HIFIEC70.IMG in the internal root (the name the stock firmware installs too): checked, then
+ * installed after 3 s (BACK: not now), then deleted and the player restarted. When FW1 already
+ * holds it: only deleted. Not a valid image, or the battery too low without the cable: a
+ * message, the file left alone, the player starts as usual. */
+static void boot_wait(int ms)
+{
+    uint32_t t0 = millis();
+    while (millis() - t0 < (uint32_t)ms)
+        wdt_kick();
+}
+
+static void boot_delete(const char *name)
+{
+    int r = fat_delete_root(name);
+    if (r)
+        sys_line(130, "could not delete it: please do", WARN);
+}
+
+void ovl_boot_install(const char *name)
+{
+    struct fat_file f;
+    struct fw_info info;
+    char b[64], *p;
+
+    if (fat_find_root(name, &f))
+        return;
+    lcd_fill(0, 0, LCD_W, LCD_H, BG);
+    p = put_str(b, "Firmware update: ");
+    p = put_str(p, name);
+    *p = 0;
+    sys_line(0, b, TITLE);
+    int r = fw_check(&f, &info, progress);
+    log_printf("install at start-up: %s, %u bytes: check %d (%s)", name, f.size, r,
+               r ? upd_error(r) : "valid");
+    if (r) {
+        sys_line(36, "not a valid firmware image:", WARN);
+        sys_line(54, upd_error(r), WARN);
+        sys_line(80, "left as it is; starting as usual", FG);
+        boot_wait(4000);
+        return;
+    }
+    p = put_str(b, "valid image, ");
+    p = put_date(p, &info);
+    *p = 0;
+    sys_line(36, b, FG);
+    if (fw_installed(&info)) {
+        log_printf("install at start-up: already installed: deleting %s", name);
+        sys_line(54, "already installed: deleting the file", FG);
+        boot_delete(name);
+        boot_wait(2000);
+        return;
+    }
+    if (!vbus() && battery_mv() < 3600) {
+        sys_line(54, "battery too low: plug the USB cable", WARN);
+        sys_line(72, "and restart; starting as usual", FG);
+        boot_wait(4000);
+        return;
+    }
+    sys_line(54, info.two_copies ? "writes FW2, then FW1" : "too big for FW2: writes FW1 only", FG);
+    sys_line(80, "do not power off during the install", WARN);
+    for (int s = 3; s > 0; s--) {               /* BACK: not now (the file stays) */
+        p = put_str(b, "installing in ");
+        p = put_dec(p, (uint32_t)s);
+        p = put_str(p, " s   BACK: not now");
+        *p = 0;
+        sys_line(154, b, DIM);
+        uint32_t t0 = millis();
+        while (millis() - t0 < 1000) {
+            wdt_kick();
+            if (key_edge() == KEY_BACK) {
+                log_printf("install at start-up: skipped (BACK)");
+                return;
+            }
+        }
+    }
+    sys_line(154, "", DIM);
+    log_printf("install at start-up: writing %s: fw_end %x, %u bytes", name, info.fw_end,
+               info.fw_size);
+    log_flush();
+    uint32_t t0 = millis();
+    r = fw_install(&f, &info, progress);
+    log_printf("install at start-up: result %d (%s) in %u ms", r, r ? upd_error(r) : "ok",
+               millis() - t0);
+    log_flush();
+    if (r) {
+        sys_line(112, upd_error(r), WARN);
+        sys_line(130, "the file stays: restart to try again", WARN);
+        boot_wait(5000);
+        return;
+    }
+    boot_delete(name);
+    log_flush();
+    sys_line(112, "installed: restarting", TITLE);
+    boot_wait(1500);
+    clock_fast_ok();
+    reboot();
 }

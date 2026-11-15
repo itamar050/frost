@@ -1,8 +1,8 @@
-/* FROST 1.2i: the code used only when no music plays (installing a firmware, the USB disk, the
- * charging screen) lives in the image, not in the main code, and runs from the DAC ring's RAM:
- * ovl.c loads it there on demand (from FW1, else FW2) after the audio is stopped, checks that it
- * belongs to this very build, runs it and clears the RAM again. audio_start() zeroes the ring
- * before any sound anyway.
+/* FROST 1.2i: the code used only when no music plays (installing a firmware, at start-up too,
+ * the USB disk, the charging screen) lives in the image, not in the main code, and runs from the
+ * DAC ring's RAM: ovl.c loads it there on demand (from FW1, else FW2) after the audio is
+ * stopped, checks that it belongs to this very build, runs it and clears the RAM again.
+ * audio_start() zeroes the ring before any sound anyway.
  *
  * In the image: header +0x160 = { OVL_MAGIC, offset, length, sum of the main code, sum of the
  * overlay } (tools/mkimg.py --ovl); the overlay starts with struct ovl_head (ovl_head.c), linked
@@ -26,12 +26,14 @@ struct ovl_head {
     void (*install)(void);                      /* the firmware menu (install.c) */
     void (*usb)(int writable);                  /* the USB disk (usbmode.c) */
     void (*charge)(int at_boot);                /* the charging screen (charge.c) */
+    void (*boot_install)(const char *name);     /* installing at start-up (install.c) */
 };
 
 /* the overlay's entries, in the overlay */
 void ovl_install(void);
 void ovl_usb(int writable);
 void ovl_charge(int at_boot);
+void ovl_boot_install(const char *name);
 
 /* "rotate left 5, xor" over n words: the same in mkimg.py */
 static inline uint32_t ovl_sum(const uint32_t *p, uint32_t n)

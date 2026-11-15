@@ -23,7 +23,7 @@ OBJS = $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS)))
 # FROST 1.2i: what runs only without music (installer, USB disk, charging screen) is an overlay,
 # loaded into the DAC ring's RAM when needed (src/ovl.h, ovl.ld); the main code keeps every
 # symbol it uses (ovl_keep.ld)
-OVL_SRCS = src/ovl_head.c src/install.c src/update.c src/usbmode.c src/usb.c src/msc.c src/charge.c
+OVL_SRCS = src/ovl_head.c src/install.c src/fatdel.c src/update.c src/usbmode.c src/usb.c src/msc.c src/charge.c
 OVL_OBJS = $(patsubst %.c,$(BUILD)/%.o,$(notdir $(OVL_SRCS)))
 
 all: $(OUT)

@@ -3,7 +3,8 @@
 #   - the image builds, warnings as errors (the stricter WARN of the Makefile on our code);
 #   - BSS leaves at least 2 KiB before the DAC ring;
 #   - the log formats match their arguments (log.h, LOG_FORMAT_CHECK);
-#   - the host tests of log.c and msc.c pass;
+#   - the host tests of log.c and msc.c pass, and fatdel.c's on real FAT32 volumes (when
+#     dosfstools and mtools are installed);
 #   - ruff (or pyflakes) and codespell find nothing (when installed);
 #   - the functions of ours the linker drops (dead code) are listed, not refused.
 # --full also builds the test variants (ECHO_HWTEST, ECHO_HWSYN, ECHO_NO_HWFFT, ECHO_FFTCMP,
@@ -65,6 +66,11 @@ for t in log msc; do
         bad "${t}_test (see fw/$C/${t}_test.log)"; tail -5 $C/${t}_test.log
     fi
 done
+if sh tools/fatdel_test.sh > $C/fatdel_test.log 2>&1; then
+    tail -1 $C/fatdel_test.log
+else
+    bad "fatdel_test (see fw/$C/fatdel_test.log)"; tail -8 $C/fatdel_test.log
+fi
 
 if [ "$1" = "--full" ]; then
     say "fuzzing harnesses"
