@@ -92,7 +92,8 @@ fi
 say "dead code (dropped by the linker)"
 if [ -f $C/prod/fw.elf ]; then
     arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb $(ls $C/prod/*.o | grep -v alacdec) -T link.ld \
-        -Wl,--gc-sections -Wl,--print-gc-sections -nostdlib -lgcc -o $C/gc.elf 2>&1 |
+        -Wl,--gc-sections -Wl,--undefined=ovl_head -Wl,--print-gc-sections -nostdlib -lgcc \
+        -o $C/gc.elf 2>&1 |
         sed -n "s/.*removing unused section '\.text\.\([^']*\)' in file '[^']*\/\([^']*\)'/\2 \1/p" |
         grep -v -e '^font_ascii' -e '^alacdec' | sort > $C/dead.txt || true
     # fat_file_of: used by SD_WALK only

@@ -11,6 +11,7 @@
 #include "keys.h"
 #include "lcd.h"
 #include "log.h"
+#include "ovl.h"
 #include "sys.h"
 
 #define CH_SEGS      10
@@ -21,9 +22,6 @@
 #define CH_FG        RGB(90, 200, 90)
 #define POWER_START_US 1000000u
 #define CABLE_OUT_US   500000u
-#define BOOT_NOTE_START 0x43485247u             /* "GRHC": restart without this screen */
-
-int sys_power_mine, boot_by_power;
 
 static void draw_frame(void)
 {
@@ -69,11 +67,9 @@ static void start(int at_boot, const char *how)
     reboot();                                   /* attempt (no 24 MHz fallback after it) */
 }
 
-void charge_screen(int at_boot)
+/* 1.2i: in the overlay (ovl.h); charge_screen (ovl.c) decides first whether it shows */
+void ovl_charge(int at_boot)
 {
-    if (at_boot && (log_boot_note_take() == BOOT_NOTE_START || !vbus() || power_key() ||
-                    boot_by_power))
-        return;                                 /* switched on by Power, or restarted from here */
     log_printf("charge: screen (%s, power key %d), battery %u mV, charge pin %d",
                at_boot ? "powered on by the USB cable" : "Power held with the cable in",
                power_key(), battery_mv(), gpio_get(PIN_CHARGING));

@@ -6,6 +6,7 @@
 #include "keys.h"
 #include "log.h"
 #include "msc.h"
+#include "ovl.h"
 #include "rtc.h"
 #include "sys.h"
 #include "sys_priv.h"
@@ -146,7 +147,7 @@ static int newest_write(const struct fat_dirent *e, void *ctx)
 }
 
 /* After a read/write session the clock may be set from what the computer wrote (rtc_from_fat) */
-void sys_usb(int writable)
+void ovl_usb(int writable)                      /* (1.2i: in the overlay, ovl.h) */
 {
     usb_mode(writable);
     uint32_t newest = 0;

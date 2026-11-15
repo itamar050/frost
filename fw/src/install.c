@@ -10,6 +10,7 @@
 #include "ui.h"
 #include "update.h"
 #include "keymap.h"
+#include "ovl.h"
 
 #define MAX_IMG 32
 #define IMG_ROWS 8                              /* rows of 16 px from y = 18, above the help line */
@@ -165,7 +166,7 @@ static void firmware_menu(void)
     }
 }
 
-void sys_install(void)
+void ovl_install(void)                          /* (1.2i: in the overlay, ovl.h) */
 {
     firmware_menu();
 }

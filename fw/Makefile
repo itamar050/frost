@@ -18,8 +18,13 @@ CFLAGS = -mcpu=cortex-m3 -mthumb -Os -g -ffreestanding -fno-builtin -nostdlib \
 WARN   = -Wshadow -Wmissing-prototypes -Wcast-qual -Wundef
 LDFLAGS = -T link.ld -Wl,--gc-sections -Wl,-Map=$(BUILD)/fw.map -nostdlib -lgcc
 
-SRCS = src/start.c src/board.c src/lcd.c src/emmc.c src/mshc.c src/sd.c src/sdtest.c src/keys.c src/fat.c src/update.c src/usb.c src/msc.c src/log.c src/i2c.c src/audio.c src/hifi.c src/player.c src/tags.c src/ui.c src/browser.c src/queue.c src/playback.c src/playscreen.c src/menu.c src/resume.c src/uidraw.c src/main.c src/install.c src/usbmode.c src/charge.c src/mp4.c src/font.c src/rtc.c src/probe.c src/theme.c src/keymap.c src/book.c src/bt.c src/eq.c $(BUILD)/font_ascii.c
+SRCS = src/start.c src/board.c src/lcd.c src/emmc.c src/mshc.c src/sd.c src/sdtest.c src/keys.c src/fat.c src/log.c src/i2c.c src/audio.c src/hifi.c src/player.c src/tags.c src/ui.c src/browser.c src/queue.c src/playback.c src/playscreen.c src/menu.c src/resume.c src/uidraw.c src/main.c src/ovl.c src/mp4.c src/font.c src/rtc.c src/probe.c src/theme.c src/keymap.c src/book.c src/bt.c src/eq.c $(BUILD)/font_ascii.c
 OBJS = $(patsubst %.c,$(BUILD)/%.o,$(notdir $(SRCS)))
+# FROST 1.2i: what runs only without music (installer, USB disk, charging screen) is an overlay,
+# loaded into the DAC ring's RAM when needed (src/ovl.h, ovl.ld); the main code keeps every
+# symbol it uses (ovl_keep.ld)
+OVL_SRCS = src/ovl_head.c src/install.c src/update.c src/usbmode.c src/usb.c src/msc.c src/charge.c
+OVL_OBJS = $(patsubst %.c,$(BUILD)/%.o,$(notdir $(OVL_SRCS)))
 
 all: $(OUT)
 
@@ -39,11 +44,25 @@ $(BUILD)/%.o: src/%.c $(BUILD)/flags
 $(BUILD)/font_ascii.o: $(BUILD)/font_ascii.c src/font.h $(BUILD)/flags
 	$(CC) $(CFLAGS) -c $< -o $@
 
--include $(OBJS:.o=.d)
+-include $(OBJS:.o=.d) $(OVL_OBJS:.o=.d)
 
-$(BUILD)/fw.elf: $(OBJS) link.ld
-	$(CC) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@
+# The symbols the overlay takes from the main code, kept there by an EXTERN() in its link
+$(BUILD)/ovl_keep.ld: $(OVL_OBJS)
+	$(CROSS)nm -u $(OVL_OBJS) | awk 'NF == 2 && $$1 == "U" { print $$2 }' | sort -u > $@.undef
+	$(CROSS)nm --defined-only $(OVL_OBJS) | awk 'NF == 3 { print $$3 }' | sort -u > $@.def
+	comm -23 $@.undef $@.def | awk 'BEGIN { printf "EXTERN(" } { printf " %s", $$1 } END { print " )" }' > $@
+
+$(BUILD)/fw.elf: $(OBJS) link.ld $(BUILD)/ovl_keep.ld
+	$(CC) $(CFLAGS) $(OBJS) $(BUILD)/ovl_keep.ld $(LDFLAGS) -o $@
 	$(CROSS)size $@
+
+$(BUILD)/ovl.elf: $(OVL_OBJS) ovl.ld $(BUILD)/fw.elf
+	$(CC) $(CFLAGS) $(OVL_OBJS) -T ovl.ld -Wl,--gc-sections -Wl,--just-symbols=$(BUILD)/fw.elf \
+	  -Wl,-Map=$(BUILD)/ovl.map -nostdlib -lgcc -o $@
+	$(CROSS)size $@
+
+$(BUILD)/ovl.bin: $(BUILD)/ovl.elf
+	$(CROSS)objcopy -O binary -j .ovl $< $@
 
 # Core B codec images (our runtime + one decoder each), packed into the image
 HCFLAGS = -mcpu=cortex-m3 -mthumb -O2 -g -ffreestanding -fno-builtin -nostdlib \
@@ -240,8 +259,9 @@ $(BUILD)/codecs.bin: $(BUILD)/hifi_wma.elf $(BUILD)/hifi_ape.elf $(BUILD)/hifi_d
 	  4:$(BUILD)/hifi_vorbis.elf 5:$(BUILD)/hifi_opus.elf 7:$(BUILD)/hifi_aac.elf 8:$(BUILD)/hifi_alac.elf 9:$(BUILD)/hifi_mpc.elf \
 	  10:$(BUILD)/hifi_dsd.elf 11:$(BUILD)/hifi_ape.elf 12:$(BUILD)/hifi_wma.elf
 
-$(OUT): $(BUILD)/fw.elf $(BUILD)/codecs.bin $(BUILD)/font.bin tools/mkimg.py
+$(OUT): $(BUILD)/fw.elf $(BUILD)/ovl.bin $(BUILD)/codecs.bin $(BUILD)/font.bin tools/mkimg.py
 	python3 tools/mkimg.py $(BUILD)/fw.elf $@ --pack $(BUILD)/codecs.bin --font $(BUILD)/font.bin \
+	  --ovl $(BUILD)/ovl.bin \
 	  $(if $(IMG_DATE),--date $(IMG_DATE))
 
 # Automatic checks (tools/check.sh): check before a commit, check-full before a release

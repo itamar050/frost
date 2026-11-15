@@ -14,7 +14,9 @@ Overlay entry 0: code at 0x03050000 (text, then the load copy of .data), data at
 loader, are empty. The codec pack (tools/mkpack.py) follows the code part, 512-aligned, before
 fw_end; header +0x148 = {1, offset, length} (the stock image-pack slot). The font blob
 (tools/mkfusion.py) follows it, 512-aligned; header +0x80 = {offset, length} (the stock 16 px
-font slot, count at +0x74 = 2 as in the stock header, +0x78 = the empty 12 px slot).
+font slot, count at +0x74 = 2 as in the stock header, +0x78 = the empty 12 px slot). The overlay
+(--ovl, src/ovl.h) follows, 512-aligned; header +0x160 = {"FOVL", offset, length, sum of the code
+part, sum of the overlay}.
 """
 import datetime
 import os
@@ -25,6 +27,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rkcrc import rkcrc                                            # noqa: E402
 
 BASE = 0x03050000
+
+
+def ovl_sum(b):
+    """src/ovl.h: rotate left 5 and xor, over the little-endian words of b"""
+    s = 0x46524f53
+    for (w,) in struct.iter_unpack("<I", bytes(b)):
+        s = ((s << 5 | s >> 27) & 0xffffffff) ^ w
+    return s
 CODE_IN_PART = 0x200
 
 
@@ -84,7 +94,10 @@ def main():
     pack_off = (0x200 + len(part) + 511) & ~511
     font = open(a[a.index("--font") + 1], "rb").read() if "--font" in a else b""
     font_off = (pack_off + len(pack) + 511) & ~511
-    fw_end = (font_off + len(font) + 0x3fff) & ~0x3fff
+    ovl = open(a[a.index("--ovl") + 1], "rb").read() if "--ovl" in a else b""
+    ovl += bytes(-len(ovl) % 4)
+    ovl_off = (font_off + len(font) + 511) & ~511
+    fw_end = (ovl_off + len(ovl) + 0x3fff) & ~0x3fff
     size = (fw_end + 0x104000) & ~0xfffff
     bcd = lambda v: int(str(v), 16)
     hdr = bytearray(0x200)
@@ -99,6 +112,9 @@ def main():
         struct.pack_into("<3I", hdr, 0x148, 1, pack_off, len(pack))
     if font:                                    # our font blob, in the 16 px font slot
         struct.pack_into("<I2I2I", hdr, 0x74, 2, 0, 0, font_off, len(font))
+    if ovl:                                     # FROST 1.2i: the overlay (src/ovl.h), with the
+        struct.pack_into("<5I", hdr, 0x160, 0x4c564f46, ovl_off, len(ovl),     # sum of the main
+                         ovl_sum(code), ovl_sum(ovl))                          # code it goes with
     struct.pack_into("<I", hdr, 0x1f4, fw_end)
     hdr[0x1f8:0x200] = b"RKnanoFW"
 
@@ -107,6 +123,7 @@ def main():
     img[0x200:0x200 + len(part)] = part
     img[pack_off:pack_off + len(pack)] = pack
     img[font_off:font_off + len(font)] = font
+    img[ovl_off:ovl_off + len(ovl)] = ovl
     img[fw_end:fw_end + 0x200] = hdr
     img += struct.pack("<I", rkcrc(bytes(img)))
     open(dst, "wb").write(img)
