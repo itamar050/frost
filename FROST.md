@@ -63,9 +63,14 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
 - **Portrait** (Main menu → Screen, 1.2j): landscape, portrait, or portrait the other way round
   (pick the one that puts the buttons where you like them). The screen turns at once and stays
   so after a restart. In portrait the browser shows 18 rows, the main menu too, and the play
-  screen is the cassette upright: the window and both reels on top, the title, artist, album and
-  time under it, then the tape's progress, the format and the volume, the meters and the next
-  track at the bottom. Every theme works upright. The key on top moves up through lists in
+  screen is a tape deck: on top the cassette in the deck's door (its label: A for the internal
+  memory or B for the card, and the album or the book's chapter; between its turning reels the
+  place in the queue; on its notch the format, "FLAC 24/96"), under it the deck's display (title,
+  artist, the date and time and the 3.5 / 4.4 jack, elapsed time, volume and length, the tape's
+  progress, BT, EQ and ReplayGain), the level meters, the transport keys (the one of the state
+  is down: play, pause or stop) and the next track. The status strip keeps the state, the play
+  mode, the sleep timer and the battery. Every theme works upright (Elvis: gold piping and a row
+  of stones; Elvis '68: stitching and a row of bulbs). The key on top moves up through lists in
   either portrait; the volume keys keep their printed labels. Not drawn upright yet (shown in
   landscape while open): the equalizer, Bluetooth, buttons, date and time, audiobooks, About,
   the USB disk, the installer and the charging screen.

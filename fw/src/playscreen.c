@@ -37,14 +37,22 @@ struct layout {
     int16_t hole_x, hole_y;                     /* its two holes (and their mirror) */
     int16_t vu_x0, vu_y, vu_seg;                /* the level meters */
     int16_t nx_x, nx_y;                         /* the next track (to LCD_W - nx_x) */
+    int16_t rmax, hub_r, hole_r;                /* the reels: the full pack, the hub, its hole */
+    int16_t sl_x0, sl_x1, sl_y;                 /* the status line */
+    int16_t bar_x0, bar_x1;                     /* the tape's progress */
+    int16_t ax0, ax1, ay;                       /* the album (or the chapter) */
+    int16_t deck;                               /* 1.2j: portrait, the deck (draw_deck) */
 };
 static const struct layout lay_land = {
     8, 312, 4, 127, 30, 101, 64, 50, 270, 84, 236, 86, 234, { 32, 48, 64, 82 },
     104, 110, 200, 110, 200, 131, 56, 8, 66, 160, 82, 135, 26, 80, 150,
+    30, 11, 7, 8, 312, 6, 14, 306, 86, 234, 64, 0,
 };
+/* Portrait: the deck (draw_deck). The label (lb_*) is the cassette's own, in the tape door */
 static const struct layout lay_port = {
-    6, 164, 4, 231, 30, 104, 66, 46, 124, 82, 88, 10, 160, { 108, 124, 140, 158 },
-    178, 186, 158, 204, 12, 236, 30, 3, 46, 302, 29, 244, 16, 26, 272,
+    19, 151, 34, 97, 58, 94, 76, 49, 121, 67, 103, 9, 161, { 139, 156, 0, 191 },
+    207, 104, 0, 191, 0, 0, 0, 0, 0, 0, 14, 241, 22, 8, 303,
+    17, 8, 5, 4, 166, 1, 14, 156, 36, 148, 42, 1,
 };
 static const struct layout *ly = &lay_land;
 
@@ -57,7 +65,7 @@ static const struct layout *ly = &lay_land;
 #define RY     (ly->ry)                         /* the reels' centre */
 #define RL     (ly->rl)
 #define RR     (ly->rr)
-#define RMAX   30
+#define RMAX   (ly->rmax)
 #define TX0    (ly->tx0)                        /* the text (landscape: between the reels) */
 #define TX1    (ly->tx1)
 #define TZ_Y   (ly->tz_y)
@@ -182,7 +190,7 @@ void marquee_tick(void)
 
 /* ---- the status line, on the top of the label: state, place in the queue, play mode on the
  * left; date and time, the output jack, the battery (an icon and its percentage) on the right */
-#define SL_Y  6
+#define SL_Y  (ly->sl_y)
 static int battery_low;                         /* under 3,425 mV without USB: shown in red */
 static uint32_t bat_t, bat_mv;
 int jack_out;                                   /* 0 none, 1: 3.5 mm, 2: 4.4 mm (ui.c) */
@@ -204,15 +212,35 @@ static void battery_icon(int x, int y, unsigned pct)
     lcd_fill(x + 1, y + 10, 17, 1, BG);
 }
 
+/* "dd/mm hh:mm", or "" while the clock is not set */
+static void put_clock(char *p)
+{
+    struct rtc_tm t;
+    if (rtc_get(&t) == 1) {
+        *p++ = (char)('0' + t.day / 10);
+        *p++ = (char)('0' + t.day % 10);
+        *p++ = '/';
+        *p++ = (char)('0' + t.mon / 10);
+        *p++ = (char)('0' + t.mon % 10);
+        *p++ = ' ';
+        *p++ = (char)('0' + t.hour / 10);
+        *p++ = (char)('0' + t.hour % 10);
+        *p++ = ':';
+        *p++ = (char)('0' + t.min / 10);
+        *p++ = (char)('0' + t.min % 10);
+    }
+    *p = 0;
+}
+
 static void status_line(void)
 {
     char b[64], *p;
     static const uint32_t mode_glyph[MODE_COUNT] = { 0, 0x21bb, 0x2460, 0x21c4, 0x21c9 };
     uint32_t st = !q_playing || audio_paused ? (parked || audio_paused ? 0x2016 : 0x25a0) : 0x25b6;
-    int x = LB_X0 + 4;
+    int x = ly->sl_x0 + 4;
     x += lcd_glyph(x, SL_Y, st, TITLE_FG, BG);
     p = put_str(b, " ");
-    if (q_n) {
+    if (q_n && !ly->deck) {
         p = put_dec(p, (uint32_t)q_cur + 1);
         p = put_str(p, "/");
         p = put_dec(p, (uint32_t)q_n);
@@ -244,9 +272,9 @@ static void status_line(void)
         *p = 0;
         x = lcd_text(x, SL_Y, b, DIM, BG);
     }
-    if (bt_linked())                            /* FROST: playing to Bluetooth headphones */
+    if (bt_linked() && !ly->deck)               /* FROST: playing to Bluetooth headphones */
         x = lcd_text(x, SL_Y, "BT ", ACCENT, BG);
-    if (eq_active())                            /* 1.2c */
+    if (eq_active() && !ly->deck)               /* 1.2c */
         x = lcd_text(x, SL_Y, "EQ ", ACCENT, BG);
     if (!bat_mv || ticks() - bat_t > 5000000) {
         bat_t = ticks();
@@ -260,13 +288,17 @@ static void status_line(void)
     p = put_dec(p, pct);
     p = put_str(p, "%");
     *p = 0;
-    int xr = LB_X1 - 4 - 22;
+    int xr = ly->sl_x1 - 4 - 22;
     battery_icon(xr, SL_Y, pct);
-    lcd_fill(xr + 21, SL_Y, LB_X1 - xr - 21, 16, BG);
+    lcd_fill(xr + 21, SL_Y, ly->sl_x1 - xr - 21, 16, BG);
     int tw = lcd_text_width(b);
     lcd_text(xr - 2 - tw, SL_Y, b, battery_low ? WARN : FG, BG);
     lcd_fill(xr - 2, SL_Y, 2, 16, BG);
     xr -= 2 + tw + 6;
+    if (ly->deck) {                             /* the rest: in the deck's display */
+        text_right(x, xr, SL_Y, "", DIM, BG);
+        return;
+    }
     const char *jk = jack_out == 2 ? "4.4" : jack_out == 1 ? "3.5" : "";
     if (*jk) {
         int jw = lcd_text_width(jk) + 6;
@@ -277,22 +309,7 @@ static void status_line(void)
         lcd_fill(xr, SL_Y, 6, 16, BG);
         xr -= jw + 6;
     }
-    struct rtc_tm t;
-    p = b;
-    if (rtc_get(&t) == 1) {
-        *p++ = (char)('0' + t.day / 10);
-        *p++ = (char)('0' + t.day % 10);
-        *p++ = '/';
-        *p++ = (char)('0' + t.mon / 10);
-        *p++ = (char)('0' + t.mon % 10);
-        *p++ = ' ';
-        *p++ = (char)('0' + t.hour / 10);
-        *p++ = (char)('0' + t.hour % 10);
-        *p++ = ':';
-        *p++ = (char)('0' + t.min / 10);
-        *p++ = (char)('0' + t.min % 10);
-    }
-    *p = 0;
+    put_clock(b);
     text_right(x, xr, SL_Y, b, DIM, BG);
 }
 
@@ -301,13 +318,14 @@ static void status_line(void)
  * is under it), then sent as a block. The tape is wound from the left reel onto the right one:
  * the left pack empties down to its hub as the track goes on, the right one fills, their area
  * kept (as on a real tape). ---- */
-#define HUB_R   11                              /* the white hub; the pack around it */
-#define HOLE_R  7
+#define HUB_R   (ly->hub_r)                     /* the white hub; the pack around it */
+#define HOLE_R  (ly->hole_r)
 #define REEL_T  (2 * RMAX + 4)                  /* a reel's tile */
+#define REEL_TMAX 64                            /* (RMAX 30 at most) */
 #define SHELL   (th->shell ? th->shell : SEL_BG)  /* 1.2h: a body of its own, else the selection's */
 static int cs_angle, cs_r16[2] = { -1, -1 }, cs_hub[2] = { -1, -1 };
 static uint32_t cs_t;
-static uint16_t tile[REEL_T * REEL_T] __attribute__((section(".dirbuf")));
+static uint16_t tile[REEL_TMAX * REEL_TMAX] __attribute__((section(".dirbuf")));
 
 static uint16_t tape_color(void)
 {
@@ -422,7 +440,7 @@ static void reels(int force)
              * (the left reel's left, the right reel's right) and goes down to the run along
              * the window's foot, as on a real cassette */
             int tx = cx[i] + (i ? (r16[i] + 8) / 16 : -(r16[i] + 8) / 16);
-            uint16_t row[REEL_T];
+            uint16_t row[REEL_TMAX];
             for (int y = RY + RMAX + 2; y < TAPE_Y; y++) {
                 for (int x = x0; x < x0 + REEL_T; x++)
                     row[x - x0] = glass(x, y);
@@ -504,9 +522,30 @@ static void screw(int x, int y)
     lcd_fill(x, y - 2, 1, 5, mix(DIM, BG, 120));
 }
 
-static void cassette(void)
+/* The window: a frame with a soft inner edge, the glass with its reflection, the guides in its
+ * lower corners and the tape run between them (under both reels) */
+static void cass_window(void)
 {
     uint16_t row[LCD_LONG];
+    lcd_fill(LB_X0 + 4, WN_Y0, LB_X1 - LB_X0 - 8, WN_Y1 - WN_Y0, mix(DIM, BG, 60));
+    lcd_fill(LB_X0 + 5, WN_Y0 + 1, LB_X1 - LB_X0 - 10, 1, mix(DIM, FG, 60));
+    for (int y = WN_Y0 + 1; y < WN_Y1 - 1; y++) {
+        int x0 = LB_X0 + 5, x1 = ly->gap0, x2 = ly->gap1, x3 = LB_X1 - 5;
+        for (int x = x0; x < x1; x++)
+            row[x - x0] = glass(x, y);
+        lcd_blit(x0, y, x1 - x0, 1, row);
+        for (int x = x2; x < x3; x++)
+            row[x - x2] = glass(x, y);
+        lcd_blit(x2, y, x3 - x2, 1, row);
+    }
+    lcd_fill(ly->gap0, WN_Y0 + 1, ly->gap1 - ly->gap0, WN_Y1 - WN_Y0 - 2, BG);
+    lcd_fill(GUIDE_L, TAPE_Y, GUIDE_R - GUIDE_L, 1, tape_color());
+    aa_disc(GUIDE_L, TAPE_Y, 2 * 16, DIM, glass);
+    aa_disc(GUIDE_R, TAPE_Y, 2 * 16, DIM, glass);
+}
+
+static void cassette(void)
+{
     for (int y = 0; y < LCD_H; y++) {           /* the shell, shaded */
         uint16_t c = shell_at(0, y);
         lcd_fill(0, y, LCD_W, 1, c);
@@ -565,23 +604,7 @@ static void cassette(void)
     lcd_fill(LB_X0 + 4, 23, LB_X1 - LB_X0 - 8, 2, ACCENT);
     lcd_fill(LB_X0 + 4, 25, LB_X1 - LB_X0 - 8, 1, mix(ACCENT, BG, 128));
     lcd_fill(LB_X0 + 4, 27, LB_X1 - LB_X0 - 8, 1, TITLE_FG);
-    /* the window: a frame with a soft inner edge, the glass with its reflection */
-    lcd_fill(LB_X0 + 4, WN_Y0, LB_X1 - LB_X0 - 8, WN_Y1 - WN_Y0, mix(DIM, BG, 60));
-    lcd_fill(LB_X0 + 5, WN_Y0 + 1, LB_X1 - LB_X0 - 10, 1, mix(DIM, FG, 60));
-    for (int y = WN_Y0 + 1; y < WN_Y1 - 1; y++) {
-        int x0 = LB_X0 + 5, x1 = ly->gap0, x2 = ly->gap1, x3 = LB_X1 - 5;
-        for (int x = x0; x < x1; x++)
-            row[x - x0] = glass(x, y);
-        lcd_blit(x0, y, x1 - x0, 1, row);
-        for (int x = x2; x < x3; x++)
-            row[x - x2] = glass(x, y);
-        lcd_blit(x2, y, x3 - x2, 1, row);
-    }
-    lcd_fill(ly->gap0, WN_Y0 + 1, ly->gap1 - ly->gap0, WN_Y1 - WN_Y0 - 2, BG);
-    /* the guides in the window's lower corners, the tape run between them (under both reels) */
-    lcd_fill(GUIDE_L, TAPE_Y, GUIDE_R - GUIDE_L, 1, tape_color());
-    aa_disc(GUIDE_L, TAPE_Y, 2 * 16, DIM, glass);
-    aa_disc(GUIDE_R, TAPE_Y, 2 * 16, DIM, glass);
+    cass_window();
     /* the bottom of the shell: a trapezoid, its slanted edges smoothed, two holes */
     for (int y = TZ_Y; y < LCD_H; y++) {
         int e16 = ly->tz_x * 16 - (y - TZ_Y) * ly->tz_slope;    /* the left edge, 1/16 px */
@@ -602,7 +625,7 @@ static void cassette(void)
 #define BAR_Y   (ly->bar_y)
 static void tape_bar(uint32_t pos, uint32_t len, int target)
 {
-    int x0 = LB_X0 + 6, w = LB_X1 - LB_X0 - 12;
+    int x0 = ly->bar_x0, w = ly->bar_x1 - ly->bar_x0;
     int f = len ? (int)((uint64_t)(pos > len ? len : pos) * (uint32_t)w / len) : 0;
     lcd_fill(x0, BAR_Y - 2, w, 2, BG);
     lcd_fill(x0, BAR_Y + 4, w, 3, BG);
@@ -697,7 +720,269 @@ static void book_line(int force)
         p = put_dec(p, (uint32_t)q_n);
     }
     *p = 0;
-    marquee_set(&mq[2], TX0, TX1, ly->ty[2], line, DIR_FG);
+    marquee_set(&mq[2], ly->ax0, ly->ax1, ly->ay, line, DIR_FG);
+}
+
+
+/* ---- FROST 1.2j: portrait, a tape deck. On top, the cassette in the deck's door (its label: the
+ * side, A internal or B card, and the album; its window: both reels and the place in the queue;
+ * its notch: the format); under it the deck's display (title, artist, the clock and the jack,
+ * elapsed, volume and total, the tape's progress, Bluetooth, EQ and ReplayGain), the meters, the
+ * transport keys (the one down shows the state) and the next track ---- */
+static char *put_vol(char *p)                   /* "-40 dB", "0 dB", "Mute" */
+{
+    if (play_level == VOL_MUTE)                 /* 1.2e: "Mute", and 0 dB without a sign */
+        return put_str(p, "Mute");
+    p = play_level ? put_str(p, "-") : p;
+    p = put_dec(p, (uint32_t)play_level / 2);
+    return put_str(p, " dB");
+}
+
+static char *put_rg(char *p)                    /* "RG-6.5" */
+{
+    unsigned a = (unsigned)(rg_steps < 0 ? -rg_steps : rg_steps);
+    p = put_str(p, "RG");
+    *p++ = rg_steps < 0 ? '-' : '+';
+    p = put_dec(p, a / 2);
+    *p++ = '.';
+    *p++ = a % 2 ? '5' : '0';
+    return p;
+}
+
+#define DK_TAPE  (SHELL)                        /* the cassette's body */
+#define DK_NOTCH (mix(BG, SHELL, 40))
+static uint16_t tape_at(int x, int y)
+{
+    (void)x;
+    (void)y;
+    return DK_TAPE;
+}
+
+static void box(int x, int y, int w, int h, uint16_t c, uint16_t edge, uint16_t under)
+{
+    lcd_fill(x, y, w, h, edge);
+    lcd_fill(x + 1, y + 1, w - 2, h - 2, c);
+    lcd_fill(x, y, 1, 1, under);                /* the corners, rounded */
+    lcd_fill(x + w - 1, y, 1, 1, under);
+    lcd_fill(x, y + h - 1, 1, 1, under);
+    lcd_fill(x + w - 1, y + h - 1, 1, 1, under);
+}
+
+/* "FLAC 24/96", "MP3 320k", "DSD64": the format, short, for the cassette's notch */
+static void format_short(char *b)
+{
+    const struct entry *e = q_ent(q_cur);
+    uint32_t c = e ? e->flags & F_CODEC : 0, len = player_heard.length_ms;
+    uint32_t kbps = e && len > 1000 ? (uint32_t)((uint64_t)e->size * 8 / len) : 0;
+    char *p = put_str(b, c == HP_CODEC_DSD ? "DSD" : codec_name(c));
+    int lossy = c == HP_CODEC_MP3 || c == HP_CODEC_AAC || c == HP_CODEC_VORBIS ||
+                c == HP_CODEC_OPUS || c == HP_CODEC_MPC || c == HP_CODEC_WMA;
+    if (c == HP_CODEC_DSD) {
+        uint32_t per = kbps / (player.channels ? player.channels : 2);
+        p = put_dec(p, per > 8000 ? 256 : per > 4000 ? 128 : 64);
+    } else if (lossy && kbps) {
+        p = put_str(p, " ");
+        p = put_dec(p, kbps);
+        p = put_str(p, "k");
+    } else {
+        p = put_str(p, " ");
+        p = put_dec(p, player_heard.bps);
+        p = put_str(p, "/");
+        p = put_khz(p, player_heard.rate);
+    }
+    *p = 0;
+}
+
+static void deck(void)
+{
+    for (int y = 0; y < LCD_H; y++)             /* the deck's body, lit from the top */
+        lcd_fill(0, y, LCD_W, 1, shell_at(0, y));
+    lcd_fill(0, 0, LCD_W, 18, BG);              /* the status strip, the next track's */
+    lcd_fill(0, 302, LCD_W, LCD_H - 302, BG);
+    if (th->deco & THEME_JEWELS) {              /* gold piping, a row of stones under the door */
+        static const uint16_t stone[3] = { RGB(236, 186, 60), RGB(210, 30, 44), RGB(40, 80, 200) };
+        lcd_fill(1, 18, 1, 284, stone[0]);
+        lcd_fill(LCD_W - 2, 18, 1, 284, stone[0]);
+        for (int x = 12, k = 0; x < LCD_W - 10; x += 7, k++) {
+            aa_disc(x, 132, 26, stone[k % 3], shell_at);
+            lcd_fill(x, 131, 1, 1, 0xffff);
+        }
+    }
+    if (th->deco & THEME_BULBS) {               /* stitching down the sides, bulbs under the door */
+        uint16_t thread = mix(SHELL, FG, 70);
+        for (int y = 20; y < 300; y += 5) {
+            lcd_fill(2, y, 1, 3, thread);
+            lcd_fill(LCD_W - 3, y, 1, 3, thread);
+        }
+        for (int x = 11, n = 0; x < LCD_W - 8; x += 10, n++)
+            bulb(x, 132, n % 5 != 4);
+    }
+    /* the door: a dark frame, the cassette behind its glass */
+    box(5, 20, 160, 110, mix(BG, SHELL, 40), mix(SHELL, FG, 70), shell_at(0, 20));
+    lcd_fill(9, 24, 152, 102, mix(BG, 0, 120));
+    box(13, 30, 144, 92, DK_TAPE, mix(SHELL, FG, 50), mix(BG, 0, 120));
+    box(LB_X0, LB_Y0, LB_X1 - LB_X0, LB_Y1 - LB_Y0, BG, BG, DK_TAPE);  /* its label */
+    lcd_fill(LB_X0 + 2, 37, LB_X1 - LB_X0 - 4, 2, ACCENT);
+    lcd_fill(LB_X0 + 2, 39, LB_X1 - LB_X0 - 4, 1, mix(ACCENT, BG, 128));
+    lcd_fill(LB_X0 + 2, 40, LB_X1 - LB_X0 - 4, 1, TITLE_FG);
+    cass_window();
+    for (int y = 100; y < 122; y++) {           /* its notch, the slanted edges smoothed */
+        int e16 = 48 * 16 - (y - 100) * 6, xl = e16 >> 4, f = e16 & 15, xr = 170 - xl;
+        lcd_fill(xl + 1, y, xr - xl - 1, 1, DK_NOTCH);
+        lcd_fill(xl, y, 1, 1, mix(DK_TAPE, DK_NOTCH, 256 - f * 16));
+        lcd_fill(xr, y, 1, 1, mix(DK_TAPE, DK_NOTCH, 256 - f * 16));
+    }
+    for (int k = 0; k < 4; k++)                 /* its screws */
+        aa_disc(k & 1 ? 153 : 17, k & 2 ? 118 : 34, 2 * 16, mix(DIM, FG, 60), tape_at);
+    /* the display, the meters' recess */
+    box(6, 135, 158, 98, mix(BG, 0, 60), mix(SHELL, FG, 40), shell_at(0, 135));
+    lcd_fill(9, 138, 152, 92, BG);
+    box(8, 237, 154, 26, mix(BG, 0, 60), mix(BG, 0, 60), shell_at(0, 237));
+    cs_r16[0] = cs_r16[1] = cs_hub[0] = cs_hub[1] = -1;
+    reels(1);
+    vu_reset();
+}
+
+/* The transport keys, piano style: the one of the state down and lit */
+static int keys_shown = -1;
+
+static void deck_keys(int force)
+{
+    static const char *const sym[5] = {
+        "\xe2\x97\x80\xe2\x97\x80", "\xe2\x96\xb6", "\xe2\x96\xb6\xe2\x96\xb6", "\xe2\x96\xa0",
+        "\xe2\x80\x96",
+    };
+    int st = !q_playing || audio_paused ? (parked || audio_paused ? 4 : 3) : 1;
+    if (!force && st == keys_shown)
+        return;
+    keys_shown = st;
+    for (int i = 0; i < 5; i++) {
+        int x0 = 8 + i * 31, down = i == st, top = 268 + (down ? 3 : 0);
+        uint16_t face = down ? mix(SHELL, ACCENT, 160) : mix(SHELL, FG, 90);
+        for (int y = 268; y < top; y++)
+            lcd_fill(x0, y, 30, 1, shell_at(0, y));
+        box(x0, top, 30, 299 - top, face, mix(SHELL, BG, 120), shell_at(0, top));
+        lcd_fill(x0 + 1, 296, 28, 2, mix(SHELL, BG, 160));
+        int w = lcd_text_width(sym[i]);
+        lcd_text_clip(x0 + (30 - w) / 2, top + 6, sym[i], x0 + 29, down ? BG : mix(SHELL, BG, 180), face);
+    }
+}
+
+static int dk_sig = -1;                         /* what the display's small lines show */
+
+static void draw_deck(int full)
+{
+    char b[64], *p;
+    if (full) {
+        mq[0].w = mq[1].w = mq[2].w = 0;
+        deck();
+        keys_shown = dk_sig = -1;
+    }
+    status_line();
+    deck_keys(0);
+    if (!q_playing && !q_n) {
+        if (full) {
+            marquee_set(&mq[0], TX0, TX1, ly->ty[0], "FROST", TITLE_FG);
+            marquee_set(&mq[1], TX0, TX1, ly->ty[1], "nothing plays", DIM);
+            marquee_set(&mq[2], ly->ax0, ly->ax1, ly->ay, "PLAY on a file", DIM);
+        }
+        return;
+    }
+    if (full) {
+        const struct entry *e = q_ent(q_cur);
+        const char *nm = tg.title[0] ? tg.title : q_full_name(q_cur);
+        marquee_set(&mq[0], TX0, TX1, ly->ty[0], nm, FG);
+        marquee_set(&mq[1], TX0, TX1, ly->ty[1], tg.artist[0] ? tg.artist : "unknown artist", TITLE_FG);
+        /* the label: the side (A internal, B card), the album or the book's chapter */
+        lcd_fill(22, 45, 11, 11, TITLE_FG);
+        lcd_text_clip(24, 42, e && (e->flags & F_SD) ? "B" : "A", 33, BG, TITLE_FG);
+        if (q_book)
+            book_line(1);
+        else
+            marquee_set(&mq[2], ly->ax0, ly->ax1, ly->ay, tg.album[0] ? tg.album : q_folder, DIR_FG);
+        /* the place in the queue, in the window between the reels */
+        p = put_dec(b, (uint32_t)q_cur + 1);
+        *p = 0;
+        int w = lcd_text_width(b);
+        lcd_text_clip(85 - w / 2, 60, b, ly->gap1, FG, BG);
+        p = put_str(b, "/");
+        p = put_dec(p, (uint32_t)q_n);
+        *p = 0;
+        w = lcd_text_width(b);
+        lcd_text_clip(85 - w / 2 > ly->gap0 ? 85 - w / 2 : ly->gap0, 75, b, ly->gap1, DIM, BG);
+        /* the format, on the notch */
+        format_short(b);
+        w = lcd_text_width(b);
+        lcd_text_clip(85 - w / 2 > 46 ? 85 - w / 2 : 46, ly->fmt_y, b, 124, DIM, DK_NOTCH);
+        /* the next track */
+        int nx = q_next_index(q_cur, 0);
+        lcd_fill(0, ly->nx_y, LCD_W, 16, BG);
+        if (nx >= 0 && nx != q_cur) {
+            int x = lcd_glyph(ly->nx_x, ly->nx_y, 0x2192, ACCENT, BG) + ly->nx_x + 2;
+            lcd_text_clip(x, ly->nx_y, q_name(nx), LCD_W - ly->nx_x, DIM, BG);
+        } else if (nx < 0 && play_mode == MODE_FOLDERS) {
+            int x = lcd_glyph(ly->nx_x, ly->nx_y, 0x21c9, ACCENT, BG) + ly->nx_x + 2;
+            lcd_text_clip(x, ly->nx_y, "the next folder", LCD_W - ly->nx_x, DIM, BG);
+        }
+    }
+    if (q_book)
+        book_line(0);
+    /* the small lines: the clock and the jack, Bluetooth, EQ, ReplayGain (when they change) */
+    struct rtc_tm t;
+    int sig = (rtc_get(&t) == 1 ? t.hour * 60 + t.min + 1 : 0) << 8 | jack_out << 4 |
+              bt_linked() << 3 | eq_active() << 2 | (rg_mode != RG_MODE_OFF && rg_tag != RG_NONE) << 1;
+    sig ^= rg_steps << 20;
+    if (sig != dk_sig) {
+        dk_sig = sig;
+        put_clock(b);
+        lcd_fill(12, 173, 146, 16, BG);
+        lcd_text_clip(14, 173, b, 118, DIM, BG);
+        const char *jk = jack_out == 2 ? "4.4" : jack_out == 1 ? "3.5" : "";
+        if (*jk) {
+            int jw = lcd_text_width(jk) + 6;
+            lcd_fill(156 - jw, 175, jw, 12, ACCENT);
+            lcd_text_clip(156 - jw + 3, 173, jk, 153, BG, ACCENT);
+        }
+        lcd_fill(12, 214, 146, 16, BG);
+        int x = 14;
+        if (bt_linked())
+            x = lcd_text(x, 214, "BT  ", ACCENT, BG);
+        if (eq_active())
+            lcd_text(x, 214, "EQ", ACCENT, BG);
+        if (rg_mode != RG_MODE_OFF && rg_tag != RG_NONE) {
+            p = put_rg(b);
+            *p = 0;
+            int track = rg_src == RG_TRACK;
+            text_right(80, 156, 214, b, track ? RG_TRACK_BG : DIM, BG);
+        }
+    }
+    /* the counter row: elapsed, volume, total; or, seeking, the target and how far */
+    lcd_fill(12, ly->ty[3], 146, 16, BG);
+    if (sk_on) {
+        p = put_str(b, sk_ms >= sk_from ? "+" : "-");
+        p = fmt_time(p, sk_ms >= sk_from ? sk_ms - sk_from : sk_from - sk_ms);
+        p = put_str(p, " ");
+        p = fmt_time(p, sk_ms);
+        *p = 0;
+        int w = lcd_text_width(b);
+        lcd_text_clip(85 - w / 2, ly->ty[3], b, 158, SK_FG, BG);
+        tape_bar(now_ms(), player_heard.length_ms, (int)sk_ms);
+        lcd_fill(12, 214, 146, 16, BG);
+        lcd_text_clip(14, 214, "PLAY go  BACK no", 158, SK_FG, BG);
+        dk_sig = -1;                            /* (the small line again after) */
+        return;
+    }
+    p = fmt_time(b, now_ms());
+    *p = 0;
+    lcd_text_clip(14, ly->ty[3], b, 62, FG, BG);
+    p = fmt_time(b, player_heard.length_ms);
+    *p = 0;
+    text_right(108, 156, ly->ty[3], b, DIM, BG);
+    p = put_vol(b);
+    *p = 0;
+    int w = lcd_text_width(b);
+    lcd_text_clip(85 - w / 2, ly->ty[3], b, 108, FG, BG);
+    tape_bar(now_ms(), player_heard.length_ms, -1);
 }
 
 /* The play screen (FROST): everything framed in the cassette */
@@ -705,6 +990,10 @@ void draw_playing(int full)
 {
     char b[96], *p;
     ly = lcd_rot ? &lay_port : &lay_land;
+    if (ly->deck) {
+        draw_deck(full);
+        return;
+    }
     if (full) {
         mq[0].w = mq[1].w = mq[2].w = 0;
         cassette();
@@ -725,7 +1014,7 @@ void draw_playing(int full)
         if (q_book) {
             book_line(1);
         } else
-            marquee_set(&mq[2], TX0, TX1, ly->ty[2], tg.album[0] ? tg.album : q_folder, DIR_FG);
+            marquee_set(&mq[2], ly->ax0, ly->ax1, ly->ay, tg.album[0] ? tg.album : q_folder, DIR_FG);
         /* the format, on the label under the tape (FROST: as the file is) */
         format_line(b);
         lcd_text_clip(LB_X0 + 6, ly->fmt_y, b, ly->fmt_x1, DIM, BG);
@@ -768,21 +1057,9 @@ void draw_playing(int full)
     lcd_fill(x, ly->ty[3], TX1 - x, 16, BG);
     tape_bar(now_ms(), player_heard.length_ms, -1);
     /* the volume and the ReplayGain, right of the format */
-    if (play_level == VOL_MUTE)                 /* 1.2e: "Mute", and 0 dB without a sign */
-        p = put_str(b, "Mute");
-    else {
-        p = play_level ? put_str(b, "-") : b;
-        p = put_dec(p, (uint32_t)play_level / 2);
-        p = put_str(p, " dB");
-    }
-    if (rg_mode != RG_MODE_OFF && rg_tag != RG_NONE) {
-        unsigned a = (unsigned)(rg_steps < 0 ? -rg_steps : rg_steps);
-        p = put_str(p, "  RG");
-        *p++ = rg_steps < 0 ? '-' : '+';
-        p = put_dec(p, a / 2);
-        *p++ = '.';
-        *p++ = a % 2 ? '5' : '0';
-    }
+    p = put_vol(b);
+    if (rg_mode != RG_MODE_OFF && rg_tag != RG_NONE)
+        p = put_rg(put_str(p, "  "));
     *p = 0;
     int track = rg_mode != RG_MODE_OFF && rg_tag != RG_NONE && rg_src == RG_TRACK;
     text_right(ly->vol_x0, LB_X1 - 6, ly->vol_y, b, track ? RG_TRACK_BG : FG, BG);
