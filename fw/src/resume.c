@@ -86,7 +86,7 @@ void resume_save(void)
     struct resume_x *x = (struct resume_x *)((uint8_t *)rs_buf + X_OFF);
     __builtin_memset(x, 0, sizeof *x);
     __builtin_memcpy(x->magic, "FROSTX3", 8);
-    x->theme = (uint32_t)theme_index;
+    x->theme = (uint32_t)theme_index | (uint32_t)ui_orient << 8;   /* 1.2j: the screen */
     x->set[XS_SORT] = (uint8_t)sort_by_tag;
     x->set[XS_CP] = (uint8_t)tag_cp;
     x->set[XS_BOOK] = (uint8_t)q_book;
@@ -158,7 +158,8 @@ void resume_load(void)
     }
     int xok = !__builtin_memcmp(x->magic, "FROSTX3", 8) && x->sum == x_sum(x);
     if (xok) {
-        theme_set((int)x->theme);
+        theme_set((int)(x->theme & 0xff));
+        ui_set_orient((int)(x->theme >> 8 & 3));
         sort_by_tag = x->set[XS_SORT] & 1;
         if (x->set[XS_CP] < TAG_CP_COUNT)
             tag_cp = x->set[XS_CP];

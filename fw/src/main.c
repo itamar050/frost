@@ -456,6 +456,8 @@ void fault_screen(const uint32_t *frame, uint32_t exc)
 
     __asm volatile ("cpsid i");
     lcd_wake_fault();
+    if (lcd_ready && lcd_rot)
+        lcd_rotate(LCD_LANDSCAPE);              /* 1.2j: this screen is drawn for landscape */
     /* into the PMU-SRAM ring only: the next boot writes it to the file */
     log_printf("FAULT exc %u pc %x lr %x psr %x cfsr %x hfsr %x bfar %x", exc,
                frame ? frame[6] : 0, frame ? frame[5] : 0, frame ? frame[7] : 0,

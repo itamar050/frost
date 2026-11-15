@@ -4,8 +4,14 @@
 
 #include <stdint.h>
 
-#define LCD_W 320
-#define LCD_H 170
+/* FROST 1.2j: the screen as held. Landscape 320 x 170, or portrait 170 x 320 (two ways round);
+ * LCD_W and LCD_H follow lcd_rotate(), LCD_LONG sizes buffers for either. */
+enum { LCD_LANDSCAPE, LCD_PORTRAIT, LCD_PORTRAIT_FLIPPED, LCD_ROTATIONS };
+extern int lcd_w, lcd_h, lcd_rot;
+#define LCD_W lcd_w
+#define LCD_H lcd_h
+#define LCD_LONG 320
+void lcd_rotate(int rot);           /* the panel turned at once; nothing redrawn */
 
 #define RGB(r, g, b) ((uint16_t)((((r) & 0xf8) << 8) | (((g) & 0xfc) << 3) | ((b) >> 3)))
 

@@ -396,6 +396,11 @@ static void draw_row(int r, int sel, int mark)
                   bg);
 }
 
+/* The first line: the folder's name, the clock (landscape: no room for it in portrait), and
+ * "selected/count" right-aligned */
+#define HDR_COUNT (lcd_rot ? 50 : 70)
+#define HDR_TITLE (lcd_rot ? 50 : 114)
+
 /* "selected/count" right-aligned on the first line */
 static void draw_count(int sel)
 {
@@ -406,7 +411,7 @@ static void draw_count(int sel)
     }
     p = put_dec(p, (uint32_t)dir_n);
     *p = 0;
-    text_right(LCD_W - 70, LCD_W - 4, 0, b, DIM, BG);
+    text_right(LCD_W - HDR_COUNT, LCD_W - 4, 0, b, DIM, BG);
 }
 
 void draw_browser(void)
@@ -426,13 +431,15 @@ void draw_browser(void)
         b_mark = mark;
         if (q_playing && player_heard.length_ms)
             progress_bar(ROW_Y0 + 16 * ROWS + 3, 4, player_heard.time_ms, player_heard.length_ms);
-        draw_clock(LCD_W - 114, LCD_W - 70, 0);
+        if (!lcd_rot)
+            draw_clock(LCD_W - 114, LCD_W - 70, 0);
         return;
     }
     if (b_dirty) {                              /* every band once, nothing cleared first */
         lcd_fill(0, 0, 4, 16, BG);
-        lcd_text_clip(4, 0, depth ? path[depth].name : "Storage", LCD_W - 114, TITLE_FG, BG);
-        draw_clock(LCD_W - 114, LCD_W - 70, 1);
+        lcd_text_clip(4, 0, depth ? path[depth].name : "Storage", LCD_W - HDR_TITLE, TITLE_FG, BG);
+        if (!lcd_rot)
+            draw_clock(LCD_W - 114, LCD_W - 70, 1);
         lcd_fill(LCD_W - 4, 0, 4, 16, BG);
         lcd_fill(0, 16, LCD_W, ROW_Y0 - 16, BG);
     }
@@ -695,7 +702,7 @@ static void jump_targets(void)
 
 static void jump_draw(int j)
 {
-    int x0 = 70, y0 = 30, w = LCD_W - 140, h = 110;
+    int x0 = lcd_rot ? 15 : 70, y0 = lcd_rot ? 105 : 30, w = LCD_W - 2 * x0, h = 110;
     lcd_fill(x0, y0, w, h, SEL_BG);
     lcd_fill(x0, y0, w, 3, ACCENT);
     lcd_fill(x0, y0 + h - 3, w, 3, ACCENT);

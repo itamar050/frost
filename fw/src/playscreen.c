@@ -22,28 +22,55 @@ static const char *codec_name(uint32_t c)
  *     104   the tape's progress
  *     110   format, volume, ReplayGain
  *   130..170 the bottom of the shell, a trapezoid (BG): meters, next track ---- */
-#define LB_X0  8                                /* the label */
-#define LB_X1  312
-#define LB_Y0  4
-#define LB_Y1  127
-#define WN_Y0  30                               /* the window */
-#define WN_Y1  101
-#define RY     64                               /* the reels' centre */
-#define RL     50
-#define RR     270
+/* FROST 1.2j: the same cassette upright (170 x 320): the window with both reels on top, the
+ * lines under it (title, artist, album, time), the tape's progress, the format, the volume; the
+ * meters and the next track in the trapezoid. Each layout's numbers; ly is the one in use (set
+ * by draw_playing, before anything of this screen is drawn). */
+struct layout {
+    int16_t lb_x0, lb_x1, lb_y0, lb_y1;         /* the label */
+    int16_t wn_y0, wn_y1;                       /* the window */
+    int16_t ry, rl, rr;                         /* the reels' centres */
+    int16_t gap0, gap1;                         /* the window's dark middle, between the reels */
+    int16_t tx0, tx1, ty[4];                    /* the lines: title, artist, album, time */
+    int16_t bar_y, fmt_y, fmt_x1, vol_y, vol_x0;    /* the tape's progress, format, volume */
+    int16_t tz_y, tz_x, tz_slope;               /* the trapezoid: its top, left edge, 1/16 px a row */
+    int16_t hole_x, hole_y;                     /* its two holes (and their mirror) */
+    int16_t vu_x0, vu_y, vu_seg;                /* the level meters */
+    int16_t nx_x, nx_y;                         /* the next track (to LCD_W - nx_x) */
+};
+static const struct layout lay_land = {
+    8, 312, 4, 127, 30, 101, 64, 50, 270, 84, 236, 86, 234, { 32, 48, 64, 82 },
+    104, 110, 200, 110, 200, 131, 56, 8, 66, 160, 82, 135, 26, 80, 150,
+};
+static const struct layout lay_port = {
+    6, 164, 4, 231, 30, 104, 66, 46, 124, 82, 88, 10, 160, { 108, 124, 140, 158 },
+    178, 186, 158, 204, 12, 236, 30, 3, 46, 302, 29, 244, 16, 26, 272,
+};
+static const struct layout *ly = &lay_land;
+
+#define LB_X0  (ly->lb_x0)
+#define LB_X1  (ly->lb_x1)
+#define LB_Y0  (ly->lb_y0)
+#define LB_Y1  (ly->lb_y1)
+#define WN_Y0  (ly->wn_y0)
+#define WN_Y1  (ly->wn_y1)
+#define RY     (ly->ry)                         /* the reels' centre */
+#define RL     (ly->rl)
+#define RR     (ly->rr)
 #define RMAX   30
-#define TX0    86                               /* the text between the reels */
-#define TX1    234
-#define TZ_Y   131
+#define TX0    (ly->tx0)                        /* the text (landscape: between the reels) */
+#define TX1    (ly->tx1)
+#define TZ_Y   (ly->tz_y)
 #define TAPE_Y (WN_Y1 - 2)                      /* the tape runs along the window's foot */
 #define GUIDE_L (LB_X0 + 8)                     /* its guides, in the window's lower corners */
 #define GUIDE_R (LB_X1 - 9)
+#define TZ_EDGE(y) (ly->tz_x - ((y) - TZ_Y) * ly->tz_slope / 16)   /* the trapezoid's left */
 
 /* ---- level meters, in the trapezoid ---- */
-#define VU_X0   (TX0 - 4)
-#define VU_SEG  26
+#define VU_X0   (ly->vu_x0)
+#define VU_SEG  (ly->vu_seg)
 #define VU_SW   5                               /* segment width, then 1 px of gap */
-#define VU_Y    135
+#define VU_Y    (ly->vu_y)
 static int vu_lit[2] = { -1, -1 }, vu_pk[2], vu_drawn[2] = { -1, -1 }, vu_pkd[2] = { -1, -1 };
 static uint32_t vu_t, vu_pk_t[2];
 
@@ -479,7 +506,7 @@ static void screw(int x, int y)
 
 static void cassette(void)
 {
-    uint16_t row[LCD_W];
+    uint16_t row[LCD_LONG];
     for (int y = 0; y < LCD_H; y++) {           /* the shell, shaded */
         uint16_t c = shell_at(0, y);
         lcd_fill(0, y, LCD_W, 1, c);
@@ -498,7 +525,7 @@ static void cassette(void)
         lcd_fill(LCD_W - 2, 3, 1, LCD_H - 6, stone[0]);
         for (int k = 0; k < 3; k++)
             for (int y = TZ_Y + 3; y < LCD_H - 8; y += 6) {
-                int x = 56 - (y - TZ_Y) / 2 - 6 - 5 * k;
+                int x = TZ_EDGE(y) - 6 - 5 * k;
                 aa_disc(x, y, 26, stone[k], shell_at);
                 aa_disc(LCD_W - 1 - x, y, 26, stone[k], shell_at);
                 lcd_fill(x, y - 1, 1, 1, 0xffff);   /* the glint */
@@ -518,7 +545,7 @@ static void cassette(void)
             bulb(LCD_W - 5, y, n % 5 != 4);
         }
         for (int y = TZ_Y + 4; y < LCD_H - 9; y += 8, n++) {
-            int x = 56 - (y - TZ_Y) / 2 - 7;
+            int x = TZ_EDGE(y) - 7;
             bulb(x, y, n % 5 != 4);
             bulb(LCD_W - 1 - x, y, n % 5 != 4);
         }
@@ -542,7 +569,7 @@ static void cassette(void)
     lcd_fill(LB_X0 + 4, WN_Y0, LB_X1 - LB_X0 - 8, WN_Y1 - WN_Y0, mix(DIM, BG, 60));
     lcd_fill(LB_X0 + 5, WN_Y0 + 1, LB_X1 - LB_X0 - 10, 1, mix(DIM, FG, 60));
     for (int y = WN_Y0 + 1; y < WN_Y1 - 1; y++) {
-        int x0 = LB_X0 + 5, x1 = TX0 - 2, x2 = TX1 + 2, x3 = LB_X1 - 5;
+        int x0 = LB_X0 + 5, x1 = ly->gap0, x2 = ly->gap1, x3 = LB_X1 - 5;
         for (int x = x0; x < x1; x++)
             row[x - x0] = glass(x, y);
         lcd_blit(x0, y, x1 - x0, 1, row);
@@ -550,21 +577,21 @@ static void cassette(void)
             row[x - x2] = glass(x, y);
         lcd_blit(x2, y, x3 - x2, 1, row);
     }
-    lcd_fill(TX0 - 2, WN_Y0 + 1, TX1 - TX0 + 4, WN_Y1 - WN_Y0 - 2, BG);
+    lcd_fill(ly->gap0, WN_Y0 + 1, ly->gap1 - ly->gap0, WN_Y1 - WN_Y0 - 2, BG);
     /* the guides in the window's lower corners, the tape run between them (under both reels) */
     lcd_fill(GUIDE_L, TAPE_Y, GUIDE_R - GUIDE_L, 1, tape_color());
     aa_disc(GUIDE_L, TAPE_Y, 2 * 16, DIM, glass);
     aa_disc(GUIDE_R, TAPE_Y, 2 * 16, DIM, glass);
     /* the bottom of the shell: a trapezoid, its slanted edges smoothed, two holes */
     for (int y = TZ_Y; y < LCD_H; y++) {
-        int e16 = 56 * 16 - (y - TZ_Y) * 8;     /* the left edge, 1/16 px */
+        int e16 = ly->tz_x * 16 - (y - TZ_Y) * ly->tz_slope;    /* the left edge, 1/16 px */
         int xl = e16 >> 4, f = e16 & 15, xr = LCD_W - 1 - xl;
         lcd_fill(xl + 1, y, xr - xl - 1, 1, BG);
         lcd_fill(xl, y, 1, 1, mix(shell_at(xl, y), BG, 256 - f * 16));
         lcd_fill(xr, y, 1, 1, mix(shell_at(xr, y), BG, 256 - f * 16));
     }
-    aa_disc(66, 160, 4 * 16 + 8, mix(SHELL, BG, 90), tz_at);
-    aa_disc(LCD_W - 67, 160, 4 * 16 + 8, mix(SHELL, BG, 90), tz_at);
+    aa_disc(ly->hole_x, ly->hole_y, 4 * 16 + 8, mix(SHELL, BG, 90), tz_at);
+    aa_disc(LCD_W - 1 - ly->hole_x, ly->hole_y, 4 * 16 + 8, mix(SHELL, BG, 90), tz_at);
     cs_r16[0] = cs_r16[1] = cs_hub[0] = cs_hub[1] = -1;
     reels(1);
     vu_reset();
@@ -572,7 +599,7 @@ static void cassette(void)
 
 /* The tape's progress under the window: wound part in the tape's colour, the rest dim; in the
  * seek mode, the target as a mark */
-#define BAR_Y   104
+#define BAR_Y   (ly->bar_y)
 static void tape_bar(uint32_t pos, uint32_t len, int target)
 {
     int x0 = LB_X0 + 6, w = LB_X1 - LB_X0 - 12;
@@ -670,13 +697,14 @@ static void book_line(int force)
         p = put_dec(p, (uint32_t)q_n);
     }
     *p = 0;
-    marquee_set(&mq[2], TX0, TX1, 64, line, DIR_FG);
+    marquee_set(&mq[2], TX0, TX1, ly->ty[2], line, DIR_FG);
 }
 
 /* The play screen (FROST): everything framed in the cassette */
 void draw_playing(int full)
 {
     char b[96], *p;
+    ly = lcd_rot ? &lay_port : &lay_land;
     if (full) {
         mq[0].w = mq[1].w = mq[2].w = 0;
         cassette();
@@ -684,31 +712,31 @@ void draw_playing(int full)
     status_line();
     if (!q_playing && !q_n) {
         if (full) {
-            marquee_set(&mq[0], TX0, TX1, 34, "FROST", TITLE_FG);
-            marquee_set(&mq[1], TX0, TX1, 52, "nothing plays", DIM);
-            marquee_set(&mq[2], TX0, TX1, 68, "PLAY on a file", DIM);
+            marquee_set(&mq[0], TX0, TX1, ly->ty[0] + 2, "FROST", TITLE_FG);
+            marquee_set(&mq[1], TX0, TX1, ly->ty[1] + 4, "nothing plays", DIM);
+            marquee_set(&mq[2], TX0, TX1, ly->ty[2] + 4, "PLAY on a file", DIM);
         }
         return;
     }
     if (full) {
         const char *nm = tg.title[0] ? tg.title : q_full_name(q_cur);
-        marquee_set(&mq[0], TX0, TX1, 32, nm, FG);
-        marquee_set(&mq[1], TX0, TX1, 48, tg.artist[0] ? tg.artist : "unknown artist", TITLE_FG);
+        marquee_set(&mq[0], TX0, TX1, ly->ty[0], nm, FG);
+        marquee_set(&mq[1], TX0, TX1, ly->ty[1], tg.artist[0] ? tg.artist : "unknown artist", TITLE_FG);
         if (q_book) {
             book_line(1);
         } else
-            marquee_set(&mq[2], TX0, TX1, 64, tg.album[0] ? tg.album : q_folder, DIR_FG);
+            marquee_set(&mq[2], TX0, TX1, ly->ty[2], tg.album[0] ? tg.album : q_folder, DIR_FG);
         /* the format, on the label under the tape (FROST: as the file is) */
         format_line(b);
-        lcd_text_clip(LB_X0 + 6, 110, b, 200, DIM, BG);
+        lcd_text_clip(LB_X0 + 6, ly->fmt_y, b, ly->fmt_x1, DIM, BG);
         /* the next track, in the bottom of the shell */
         int nx = q_next_index(q_cur, 0);
         if (nx >= 0 && nx != q_cur) {
-            int x = lcd_glyph(80, 150, 0x2192, ACCENT, BG) + 82;
-            lcd_text_clip(x, 150, q_name(nx), LCD_W - 80, DIM, BG);
+            int x = lcd_glyph(ly->nx_x, ly->nx_y, 0x2192, ACCENT, BG) + ly->nx_x + 2;
+            lcd_text_clip(x, ly->nx_y, q_name(nx), LCD_W - ly->nx_x, DIM, BG);
         } else if (nx < 0 && play_mode == MODE_FOLDERS) {   /* the end of this folder */
-            int x = lcd_glyph(80, 150, 0x21c9, ACCENT, BG) + 82;
-            lcd_text_clip(x, 150, "the next folder", LCD_W - 80, DIM, BG);
+            int x = lcd_glyph(ly->nx_x, ly->nx_y, 0x21c9, ACCENT, BG) + ly->nx_x + 2;
+            lcd_text_clip(x, ly->nx_y, "the next folder", LCD_W - ly->nx_x, DIM, BG);
         }
     }
     if (sk_on) {                                /* the target, how far */
@@ -720,12 +748,12 @@ void draw_playing(int full)
         char t[24];
         fmt_time(t, sk_ms);
         int w2 = lcd_text_width(t), x = TX0 + (TX1 - TX0 - w - w2) / 2;
-        lcd_fill(TX0, 82, x - TX0, 16, BG);
-        x = lcd_text(x, 82, b, SK_FG, BG);
-        x = lcd_text(x, 82, t, FG, BG);
-        lcd_fill(x, 82, TX1 - x, 16, BG);
+        lcd_fill(TX0, ly->ty[3], x - TX0, 16, BG);
+        x = lcd_text(x, ly->ty[3], b, SK_FG, BG);
+        x = lcd_text(x, ly->ty[3], t, FG, BG);
+        lcd_fill(x, ly->ty[3], TX1 - x, 16, BG);
         tape_bar(now_ms(), player_heard.length_ms, (int)sk_ms);
-        lcd_text_clip(200, 110, "PLAY go  BACK no", LB_X1 - 6, SK_FG, BG);
+        lcd_text_clip(ly->vol_x0, ly->vol_y, "PLAY go  BACK no", LB_X1 - 6, SK_FG, BG);
         return;
     }
     if (q_book)
@@ -735,9 +763,9 @@ void draw_playing(int full)
     p = fmt_time(p, player_heard.length_ms);
     *p = 0;
     int w = lcd_text_width(b), x = TX0 + (TX1 - TX0 - w) / 2;
-    lcd_fill(TX0, 82, x - TX0, 16, BG);
-    x = lcd_text(x, 82, b, FG, BG);
-    lcd_fill(x, 82, TX1 - x, 16, BG);
+    lcd_fill(TX0, ly->ty[3], x - TX0, 16, BG);
+    x = lcd_text(x, ly->ty[3], b, FG, BG);
+    lcd_fill(x, ly->ty[3], TX1 - x, 16, BG);
     tape_bar(now_ms(), player_heard.length_ms, -1);
     /* the volume and the ReplayGain, right of the format */
     if (play_level == VOL_MUTE)                 /* 1.2e: "Mute", and 0 dB without a sign */
@@ -757,7 +785,7 @@ void draw_playing(int full)
     }
     *p = 0;
     int track = rg_mode != RG_MODE_OFF && rg_tag != RG_NONE && rg_src == RG_TRACK;
-    text_right(200, LB_X1 - 6, 110, b, track ? RG_TRACK_BG : FG, BG);
+    text_right(ly->vol_x0, LB_X1 - 6, ly->vol_y, b, track ? RG_TRACK_BG : FG, BG);
 }
 
 /* An action on the play screen (keymap.h), or a playback action given on the browser: VOL+/VOL-

@@ -70,12 +70,29 @@ def load(u, d):
 
 
 class Panel:
+    """The panel as the firmware sees it. FROST 1.2j: MADCTL 0x60 is landscape (320 x 170, the
+    170 lines from row 35), 0xc0 and 0x00 portrait (170 x 320, the 170 columns from column 35;
+    0x00 is the same picture upside down on the glass): the screenshot shows the screen the way
+    the player is held."""
     def __init__(self):
+        self.rot = 0
+        self.w, self.h = 320, 170
         self.fb = [[0] * 320 for _ in range(170)]
         self.cmd, self.args, self.cmds = None, [], []
         self.x0 = self.x1 = self.y0 = self.y1 = self.x = self.y = 0
         self.hi = None
         self.pixels = 0
+
+    def rotate(self, madctl):
+        rot = {0x60: 0, 0xc0: 1, 0x00: 2}.get(madctl, 0)
+        if rot != self.rot:
+            self.rot = rot
+            self.w, self.h = (320, 170) if rot == 0 else (170, 320)
+            self.fb = [[0] * self.w for _ in range(self.h)]
+
+    def at(self, col, row):
+        """controller column and row to the screen's x, y (offset 35 on the short side)"""
+        return (col, row - 35) if self.rot == 0 else (col - 35, row)
 
     def command(self, c):
         self.flush()
@@ -97,14 +114,17 @@ class Panel:
                 self.hi = v
                 return
             px, self.hi = self.hi << 8 | v, None
-            if 0 <= self.y - 35 < 170 and 0 <= self.x < 320:
-                self.fb[self.y - 35][self.x] = px
+            sx, sy = self.at(self.x, self.y)
+            if 0 <= sy < self.h and 0 <= sx < self.w:
+                self.fb[sy][sx] = px
             self.pixels += 1
             self.x += 1
             if self.x > self.x1:
                 self.x, self.y = self.x0, self.y + 1
             return
         self.args.append(v)
+        if self.cmd == 0x36 and len(self.args) == 1:
+            self.rotate(v)
         if self.cmd == 0x2a and len(self.args) == 4:
             self.x0, self.x1 = self.args[0] << 8 | self.args[1], self.args[2] << 8 | self.args[3]
         if self.cmd == 0x2b and len(self.args) == 4:
@@ -113,15 +133,17 @@ class Panel:
     def fill(self, x, y, w, h, color):
         """lcd_fill() at once (emu_fw's hook): the same window, command and pixels"""
         self.flush()
-        self.cmds += [(0x2a, [x >> 8, x & 255, (x + w - 1) >> 8, (x + w - 1) & 255]),
-                      (0x2b, [(y + 35) >> 8, (y + 35) & 255, (y + h + 34) >> 8, (y + h + 34) & 255]),
+        cx, cy = (x, y + 35) if self.rot == 0 else (x + 35, y)
+        self.cmds += [(0x2a, [cx >> 8, cx & 255, (cx + w - 1) >> 8, (cx + w - 1) & 255]),
+                      (0x2b, [cy >> 8, cy & 255, (cy + h - 1) >> 8, (cy + h - 1) & 255]),
                       (0x2c, [f"{w * h} px"])]
         self.cmd = None
-        self.x0, self.x1, self.y0, self.y1 = x, x + w - 1, y + 35, y + h + 34
-        for r in range(max(y, 0), min(y + h, 170)):
+        self.x0, self.x1, self.y0, self.y1 = cx, cx + w - 1, cy, cy + h - 1
+        for r in range(max(y, 0), min(y + h, self.h)):
             row = self.fb[r]
-            lo, hi = max(x, 0), min(x + w, 320)
-            row[lo:hi] = [color] * max(hi - lo, 0)
+            lo, hi = max(x, 0), min(x + w, self.w)
+            if hi > lo:                         # (a negative hi would cut the row)
+                row[lo:hi] = [color] * (hi - lo)
 
     def png(self, path, scale=2):
         import zlib
@@ -133,7 +155,7 @@ class Panel:
 
         def chunk(t, b):
             return struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b))
-        ihdr = struct.pack(">IIBBBBB", 320 * scale, 170 * scale, 8, 2, 0, 0, 0)
+        ihdr = struct.pack(">IIBBBBB", self.w * scale, self.h * scale, 8, 2, 0, 0, 0)
         open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
                                + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 

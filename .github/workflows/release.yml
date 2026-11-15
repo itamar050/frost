@@ -113,7 +113,7 @@ jobs:
               | sed -E "1s/^FROST $V: *//")
             printf '%s\n' "$MSG" > notes.md
           fi
-          printf '\nInstall: copy HIFIEC70.IMG to the player, then Main menu > Install a firmware (.IMG).\n\nSHA-256 of HIFIEC70.IMG: `%s`\n' "$SHA" >> notes.md
+          printf '\nInstall: copy HIFIEC70.IMG to the top folder of the player and restart it (FROST 1.2i or later), or Main menu > Install a firmware (.IMG).\n\nSHA-256 of HIFIEC70.IMG: `%s`\n' "$SHA" >> notes.md
           cat notes.md
           ASSETS="out/HIFIEC70.IMG"
           [ -f docs/promo/install-guide.pdf ] && ASSETS="$ASSETS docs/promo/install-guide.pdf"

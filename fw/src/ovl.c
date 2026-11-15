@@ -125,6 +125,11 @@ void charge_screen(int at_boot)
             reboot();                           /* after Power held, start again (as usual) */
         return;                                 /* at boot: the player as usual */
     }
+    int rot = lcd_rot;
+    if (rot)
+        lcd_rotate(LCD_LANDSCAPE);              /* 1.2j: drawn for landscape */
     o->charge(at_boot);
     ovl_done(o);
+    if (rot)
+        lcd_rotate(rot);
 }

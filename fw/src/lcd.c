@@ -13,7 +13,13 @@ static uint32_t lcd_id;
 static int lcd_variant;
 int lcd_ready;
 
-#define ROW_OFFSET 35   /* the 170 visible lines start at line 35 of the controller */
+#define ROW_OFFSET 35   /* the 170 visible lines start at line 35 of the controller (portrait:
+                           the 170 visible columns start at column 35) */
+
+/* FROST 1.2j: MADCTL for landscape, portrait, portrait the other way round (the init tables set
+ * landscape) */
+static const uint8_t madctl[LCD_ROTATIONS] = { 0x60, 0xc0, 0x00 };
+int lcd_w = 320, lcd_h = 170, lcd_rot;
 
 static inline void cmd(uint8_t c)
 {
@@ -168,8 +174,13 @@ static void lcd_set_timing(uint32_t hclk)
 
 static void window(int x0, int y0, int x1, int y1)
 {
-    y0 += ROW_OFFSET;
-    y1 += ROW_OFFSET;
+    if (lcd_rot) {
+        x0 += ROW_OFFSET;
+        x1 += ROW_OFFSET;
+    } else {
+        y0 += ROW_OFFSET;
+        y1 += ROW_OFFSET;
+    }
     cmd(0x2a);
     dat(x0 >> 8);
     dat(x0);
@@ -540,6 +551,17 @@ void lcd_wake_fault(void)
         ;
     cmd(0x29);
     lcd_asleep = 0;
+}
+
+void lcd_rotate(int rot)
+{
+    if (rot < 0 || rot >= LCD_ROTATIONS)
+        rot = LCD_LANDSCAPE;
+    lcd_rot = rot;
+    lcd_w = rot ? 170 : 320;
+    lcd_h = rot ? 320 : 170;
+    cmd(0x36);
+    dat(madctl[rot]);
 }
 
 void lcd_init(void)

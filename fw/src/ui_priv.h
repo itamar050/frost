@@ -115,12 +115,16 @@ int sd_open(void);                              /* the card set up and mounted, 
 void sd_forget(void);                           /* set up again at the next access */
 int sd_watch(void);                             /* the detect switch: 1 redraw, 2 playback stopped */
 
-#define ROWS   9
+#define ROWS   (lcd_rot ? 18 : 9)                 /* 1.2j: portrait, 18 rows of 16 px */
 #define ROW_Y0 18
 extern int b_dirty;                             /* the browser page must be drawn again */
 void draw_browser(void);
 int browser_action(int a, int repeat);     /* FROST: an action (keymap.h) on the browser */
 void browser_home(void);
+/* FROST 1.2j: the screen as the user holds it (LCD_LANDSCAPE, LCD_PORTRAIT, LCD_PORTRAIT_FLIPPED),
+ * kept with the theme; screens not drawn for portrait yet show in landscape meanwhile */
+extern int ui_orient;
+void ui_set_orient(int rot);                    /* turned at once, the lists' pages fitted */
 
 /* ---- queue.c ---- */
 #define Q_DIRS 4000                             /* folders with tracks in the queue (§79) */
@@ -201,7 +205,7 @@ int seek_key(const struct key_ev *e);
 #else
 #define M_BT_ITEM
 #endif
-enum { M_FILES, M_PLAYING, M_SHUFFLE_ALL, M_BOOKS, M_EQ, M_BT_ITEM M_SLEEP, M_THEME, M_BRIGHT, M_BUTTONS,
+enum { M_FILES, M_PLAYING, M_SHUFFLE_ALL, M_BOOKS, M_EQ, M_BT_ITEM M_SLEEP, M_THEME, M_SCREEN, M_BRIGHT, M_BUTTONS,
        M_SORT, M_CLOCK, M_RG, M_USB_RW, M_INSTALL, M_SYSTEM, M_LOADER, M_ABOUT, M_COUNT };
 /* FROST: the sleep timer (ui.c): minutes, SLEEP_CHAPTER at the end of the chapter, 0 off */
 #define SLEEP_CHAPTER (-1)

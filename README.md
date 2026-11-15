@@ -21,6 +21,7 @@ a new interface, more formats and an equalizer.
 - **10-band equalizer** (31 Hz to 16 kHz, ±12 dB) with presets: Flat, Rock, Pop, Jazz,
   Classical, Bass boost, Vocal, Treble and Custom. Fully bypassed when off.
 - **25 themes** and a cassette-style play screen with spinning reels.
+- **Portrait mode** (since 1.2j): the browser, the menu and the play screen upright, either way round.
 - **Shuffle all music**, plus play modes: in order, repeat all, repeat one, shuffle, folders.
 - **Audiobooks:** bookmarks, m4b chapters, 30-second skips. Sleep timer.
 - **Big libraries:** unlimited files, large folders, fast scrolling and quick jump.

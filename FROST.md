@@ -60,6 +60,15 @@ the browser and say why they can't play), DST-compressed DSD, and multichannel f
 player doesn't use, such as video files and lossy 5.1, are not included either.
 
 ### Screen and power
+- **Portrait** (Main menu → Screen, 1.2j): landscape, portrait, or portrait the other way round
+  (pick the one that puts the buttons where you like them). The screen turns at once and stays
+  so after a restart. In portrait the browser shows 18 rows, the main menu too, and the play
+  screen is the cassette upright: the window and both reels on top, the title, artist, album and
+  time under it, then the tape's progress, the format and the volume, the meters and the next
+  track at the bottom. Every theme works upright. The key on top moves up through lists in
+  either portrait; the volume keys keep their printed labels. Not drawn upright yet (shown in
+  landscape while open): the equalizer, Bluetooth, buttons, date and time, audiobooks, About,
+  the USB disk, the installer and the charging screen.
 - **Only Power switches the screen on.** With the screen off, the other keys keep working
   (volume, play / pause, next, previous, seek...) and the screen stays off: the player can be
   used blind, and a press doesn't light the screen up. The charging screen is the exception:

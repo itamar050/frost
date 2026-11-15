@@ -228,9 +228,35 @@ static int shuffle_all(void)
 }
 
 /* MENU held: the main menu, then what was chosen in it */
+static void menu_screen(int m, int *scr);
+
+/* FROST 1.2j: the screen as held; the pages of the browser's levels keep their selection */
+int ui_orient;
+
+void ui_set_orient(int rot)
+{
+    if (rot < 0 || rot >= LCD_ROTATIONS)
+        rot = LCD_LANDSCAPE;
+    ui_orient = rot;
+    lcd_rotate(rot);
+    for (int i = 0; i <= depth && i < DEPTH_MAX; i++)
+        if (path[i].sel < path[i].top || path[i].sel >= path[i].top + ROWS)
+            path[i].top = path[i].sel >= ROWS / 2 ? path[i].sel - ROWS / 2 : 0;
+    b_dirty = 1;
+}
+
 static void menu_open(int *scr)
 {
     int m = main_menu();
+    if (m >= 0 && m != M_FILES && m != M_PLAYING && m != M_SHUFFLE_ALL && lcd_rot)
+        lcd_rotate(LCD_LANDSCAPE);              /* 1.2j: not drawn for portrait yet */
+    menu_screen(m, scr);
+    if (lcd_rot != ui_orient)
+        lcd_rotate(ui_orient);                  /* (the caller draws everything again) */
+}
+
+static void menu_screen(int m, int *scr)
+{
     if (m == M_FILES)
         *scr = SCR_BROWSER;
     else if (m == M_CLOCK)

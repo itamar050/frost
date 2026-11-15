@@ -11,7 +11,7 @@ static const char *const m_names[M_COUNT] = {
     "Bluetooth: ",
 #endif
     "Sleep timer: ",
-    "Theme: ", "Brightness: ", "Buttons", "Sort files: ", "Date and time", "ReplayGain: ",
+    "Theme: ", "Screen: ", "Brightness: ", "Buttons", "Sort files: ", "Date and time", "ReplayGain: ",
     "USB disk, read/write", "Install a firmware (.IMG)", "Debug info", "USB loader mode (exit: RST)",
     "About FROST",
 };
@@ -36,6 +36,9 @@ int main_menu(void)
                     p = put_str(p, rg_names[rg_mode]);
                 if (i == M_THEME)
                     p = put_str(p, th->name);
+                if (i == M_SCREEN)
+                    p = put_str(p, ui_orient == LCD_PORTRAIT ? "portrait" :
+                                   ui_orient == LCD_PORTRAIT_FLIPPED ? "portrait, flipped" : "landscape");
                 if (i == M_BRIGHT) {            /* a bar of ten, and the level */
                     for (int lv = 1; lv <= 10; lv++)
                         p = put_str(p, lv <= lcd_level ? "\xe2\x96\xae" : "\xe2\x96\xaf");
@@ -92,6 +95,12 @@ int main_menu(void)
             if (path[depth].sel >= dir_n)
                 path[depth].sel = path[depth].top = 0;
             q_resort();
+            resume_save();
+            dirty = 1;
+        } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_SCREEN) {
+            ui_set_orient((ui_orient + 1) % LCD_ROTATIONS);     /* turned at once */
+            if (sel >= top + ROWS || sel < top)
+                top = sel;
             resume_save();
             dirty = 1;
         } else if (k == KEY_PLAY && ev == EV_PRESS && sel == M_THEME) {
@@ -548,11 +557,12 @@ void ui_power_splash(void)
 {
     audio_silence();
     lcd_fill(0, 0, LCD_W, LCD_H, BG);
-    snowflake(160, 58, 30, ACCENT);
-    snowflake(160, 58, 12, TITLE_FG);
+    int dy = lcd_rot ? 60 : 0;                  /* 1.2j: portrait, lower on the taller screen */
+    snowflake(LCD_W / 2, 58 + dy, 30, ACCENT);
+    snowflake(LCD_W / 2, 58 + dy, 12, TITLE_FG);
     int w = lcd_text_width_x("Power off", 2);
-    lcd_text_clip_x((LCD_W - w) / 2, 98, "Power off", (LCD_W + w) / 2, FG, BG, 2);
+    lcd_text_clip_x((LCD_W - w) / 2, 98 + dy, "Power off", (LCD_W + w) / 2, FG, BG, 2);
     const char *m = state_saved_anywhere() ? "your place is kept" : "no place to keep your state";
     int w2 = lcd_text_width(m);
-    lcd_text((LCD_W - w2) / 2, 140, m, DIM, BG);
+    lcd_text_clip(w2 < LCD_W ? (LCD_W - w2) / 2 : 0, 140 + dy, m, LCD_W, DIM, BG);
 }
