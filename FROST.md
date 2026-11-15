@@ -72,9 +72,9 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   mode, the sleep timer and the battery. Every theme works upright (Elvis: gold piping and a row
   of stones; Elvis '68: stitching and a row of bulbs). The format is split: on the notch the codec
   and the rate ("MP3 44.1", "DSD64→88.2"), a lossy file's bitrate on the display's last line.
-  In portrait (not flipped) the volume rocker turns with the screen: VOL- turns the volume up
-  and VOL+ down, and the lists follow (the custom button map too); in portrait flipped and in
-  landscape the keys do what they say. Not drawn upright yet (shown in
+  Upright, the VOL key pointing up moves up through lists and turns the volume up (seeking:
+  forward), the one pointing down the other way, whichever way round the player is held (the
+  custom button map follows); in landscape the keys do what they say. Not drawn upright yet (shown in
   landscape while open): the equalizer, Bluetooth, buttons, date and time, audiobooks, About,
   the USB disk, the installer and the charging screen.
 - **Only Power switches the screen on.** With the screen off, the other keys keep working

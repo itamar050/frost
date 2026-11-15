@@ -36,5 +36,6 @@ const char *action_name(int a);         /* on the screen */
 const char *slot_name(int s);
 int keymap_load_file(void);             /* KEYMAP.TXT: 1 applied, 0 none, < 0 error */
 int key_list_dir(int key);              /* FROST: -1 up, 1 down (as the browser), 0 */
+int key_vol_up(int key);                /* 1.2j: VOL key turning the volume up, as held */
 
 #endif

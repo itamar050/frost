@@ -289,7 +289,7 @@ static void status_line(void)
     p = put_str(p, "%");
     *p = 0;
     int xr = ly->sl_x1 - 4 - 22;
-    battery_icon(xr, SL_Y, pct);
+    battery_icon(xr, SL_Y + 1, pct);           /* 1.2j: centred on the digits (was 1 px high) */
     lcd_fill(xr + 21, SL_Y, ly->sl_x1 - xr - 21, 16, BG);
     int tw = lcd_text_width(b);
     lcd_text(xr - 2 - tw, SL_Y, b, battery_low ? WARN : FG, BG);
@@ -1208,7 +1208,7 @@ int play_action(int a, int repeat)
 int seek_key(const struct key_ev *e)
 {
     if (key_is_vol(e->key)) {
-        seek_move(e->key == KEY_VOLUP ? 1 : -1, e->type == EV_REPEAT);
+        seek_move(key_vol_up(e->key) ? 1 : -1, e->type == EV_REPEAT);
         return UI_QUICK;
     }
     if (e->type != EV_PRESS)

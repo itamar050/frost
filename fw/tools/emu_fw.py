@@ -85,6 +85,8 @@ class Panel:
 
     def rotate(self, madctl):
         rot = {0x60: 0, 0xc0: 1, 0x00: 2}.get(madctl, 0)
+        if os.environ.get("EMU_ROT"):
+            print(f"panel: MADCTL {madctl:#04x}")
         if rot != self.rot:
             self.rot = rot
             self.w, self.h = (320, 170) if rot == 0 else (170, 320)

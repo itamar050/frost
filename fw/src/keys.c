@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include "keys.h"
 #include "board.h"
-#include "lcd.h"
 #include "log.h"
 
 /* ---- debouncing ---- */
@@ -30,9 +29,6 @@ static int key_scan(void)
     unsigned v = adc_read(1);
     int k = key_ladder(v);
     uint32_t now = ticks();
-    if (lcd_rot == LCD_PORTRAIT && (k == KEY_VOLUP || k == KEY_VOLDOWN))
-        k = k == KEY_VOLUP ? KEY_VOLDOWN : KEY_VOLUP;   /* 1.2j: the rocker turns with the screen
-                                                           (portrait; not flipped, not landscape) */
 
     if (k != raw) {
         uint32_t held = now - since;

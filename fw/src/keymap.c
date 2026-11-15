@@ -2,6 +2,7 @@
 #include "keymap.h"
 #include "board.h"
 #include "fat.h"
+#include "lcd.h"
 #include "log.h"
 
 uint8_t keymap[KM_SCREENS][S_COUNT];
@@ -82,6 +83,22 @@ static int repeats(int a)
            a == A_VOL_DOWN || a == A_FWD || a == A_REW;
 }
 
+/* FROST 1.2j: the rocker as held. Upright, the VOL key on top moves up through lists and turns
+ * the volume up. Portrait: VOL+ is on top, so moving through lists is swapped; portrait flipped:
+ * VOL- is on top, so the volume (and the play screens' VOL slots) is swapped. */
+static int rocker_slot(int screen, int s)
+{
+    int swap = screen == KM_BROWSER ? lcd_rot == LCD_PORTRAIT : lcd_rot == LCD_PORTRAIT_FLIPPED;
+    if (swap && (s == S_VOLUP || s == S_VOLDOWN))
+        return s == S_VOLUP ? S_VOLDOWN : S_VOLUP;
+    return s;
+}
+
+int key_vol_up(int key)                         /* the key turns the volume up (seek: forward) */
+{
+    return (key == KEY_VOLUP) != (lcd_rot == LCD_PORTRAIT_FLIPPED);
+}
+
 int keymap_action(int screen, const struct key_ev *e, int *repeat)
 {
     static int fired;                           /* a VOL key held: its one-shot action given */
@@ -92,13 +109,14 @@ int keymap_action(int screen, const struct key_ev *e, int *repeat)
         fired = 0;
         s = e->key == KEY_PLAY ? S_PLAY : e->key == KEY_BACK ? S_BACK : e->key == KEY_MENU ? S_MENU :
             e->key == KEY_VOLUP ? S_VOLUP : e->key == KEY_VOLDOWN ? S_VOLDOWN : -1;
+        s = rocker_slot(screen, s);
         break;
     case EV_LONG:
         s = e->key == KEY_PLAY ? S_PLAY_HOLD : e->key == KEY_BACK ? S_BACK_HOLD :
             e->key == KEY_MENU ? S_MENU_HOLD : -1;
         break;
     case EV_REPEAT: {
-        s = e->key == KEY_VOLUP ? S_VOLUP : e->key == KEY_VOLDOWN ? S_VOLDOWN : -1;
+        s = rocker_slot(screen, e->key == KEY_VOLUP ? S_VOLUP : e->key == KEY_VOLDOWN ? S_VOLDOWN : -1);
         if (s < 0)
             return A_NONE;
         int a = keymap[screen][s];
@@ -224,5 +242,6 @@ int key_list_dir(int key)
         return 0;
     int a = keymap[KM_BROWSER][S_VOLUP];
     int up_is_down = a == A_DOWN || a == A_PAGE_DOWN;
-    return (key == KEY_VOLUP) == up_is_down ? 1 : -1;
+    int d = (key == KEY_VOLUP) == up_is_down ? 1 : -1;
+    return lcd_rot == LCD_PORTRAIT ? -d : d;    /* 1.2j: the key on top moves up (rocker_slot) */
 }
