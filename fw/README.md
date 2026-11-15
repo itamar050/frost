@@ -17,6 +17,7 @@ rebuilds what needs it; `BUILD=dir` builds into another folder.
 
     make check          # before a commit
     make check-full     # before a release: also the test variants and the fuzzing harnesses
+    make audioguard     # the audio chain unchanged since the last release
 
 `tools/check.sh`: the image built with warnings as errors (our code also gets `-Wshadow
 -Wmissing-prototypes -Wcast-qual -Wundef`), at least 2 KiB of BSS left before the DAC ring,
@@ -32,6 +33,14 @@ Font License 1.1, see `OFL.txt` and `LICENSES/` there): Latin, Greek, Cyrillic, 
 ideographs and Hangul, 37 690 glyphs. `tools/mkfusion.py` converts its BDF into a blob stored
 in the image, read glyph by glyph from the eMMC with a cache; printable ASCII is also built
 into the code. Any copy of the image must ship with that license.
+
+`tools/audioguard.sh` builds the last release tag and the current tree with the same compiler and
+compares their audio chain (`tools/audioguard.py`): the objects of the DAC, I2S and I2C drivers, the
+player, core B's control, Bluetooth, the M4A reader, the tags (ReplayGain), the EQ and the playback
+logic, section by section (bytes and relocations by name, so moving code elsewhere does not count),
+the decoders of core B (`codecs.bin`) byte for byte, and the DAC ring's address and size. The CI
+runs it on every push and before each release. A deliberate change of the audio chain is listed,
+with its reason, in `tools/audioguard-allow.txt`.
 
 Releases are made by GitHub (`.github/workflows/release.yml`): a push to `main` that changes
 `FW_VERSION` in `src/version.h` runs `make check`, builds `HIFIEC70.IMG` and publishes it as

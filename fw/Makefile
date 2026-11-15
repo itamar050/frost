@@ -248,10 +248,14 @@ $(OUT): $(BUILD)/fw.elf $(BUILD)/codecs.bin $(BUILD)/font.bin tools/mkimg.py
 check:
 	sh tools/check.sh
 
+# The audio chain unchanged since the last release (tools/audioguard.sh)
+audioguard:
+	sh tools/audioguard.sh
+
 check-full:
 	sh tools/check.sh --full
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all clean check check-full FORCE
+.PHONY: all clean check check-full audioguard FORCE

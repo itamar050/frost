@@ -1,0 +1,4 @@
+# Deliberate changes to the audio chain (tools/audioguard.py), one per line:
+#   <release tag compared with> <object> <why>
+# e.g.  v1.2h audio.o 1.2i: the DAC's filter register set for 384 kHz
+# Lines for an older tag are ignored: the list starts empty again after each release.

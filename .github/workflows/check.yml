@@ -26,12 +26,16 @@ jobs:
           /opt/venv/bin/pip install -q ruff==0.17.3 codespell==2.4.3
           echo /opt/venv/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                # the release tags, for the audio guard
       - name: Publication rules
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           sh fw/tools/pubcheck.sh
       - name: make check
         run: make -C fw check
+      - name: Audio guard (audio, Bluetooth and decoders unchanged since the last release)
+        run: make -C fw audioguard
       - name: Image
         run: |
           make -C fw -j"$(nproc)" | tee build.log

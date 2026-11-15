@@ -1,6 +1,8 @@
 # A release for each new firmware version: when FW_VERSION in fw/src/version.h changes on main,
-# make check, build HIFIEC70.IMG (same toolchain as check.yml: Debian's gcc-arm-none-eabi
-# 14.2.rel1, dated by the last commit, so byte-identical to a local build of that commit) and
+# make check, the audio guard (tools/audioguard.sh: audio, Bluetooth and decoders as in the last
+# release unless tools/audioguard-allow.txt says why), build HIFIEC70.IMG (same toolchain as
+# check.yml: Debian's gcc-arm-none-eabi 14.2.rel1, dated by the last commit, so byte-identical to
+# a local build of that commit) and
 # publish it as release v<version> with docs/promo/install-guide.pdf. A version that already has a
 # release is left alone. Notes: docs/release-notes/<version>.md when it exists, otherwise the
 # message of the commit that changed the version (without its trailers).
@@ -60,12 +62,16 @@ jobs:
           /opt/venv/bin/pip install -q ruff==0.17.3 codespell==2.4.3
           echo /opt/venv/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                # the release tags, for the audio guard
       - name: Publication rules
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           sh fw/tools/pubcheck.sh
       - name: make check
         run: make -C fw check
+      - name: Audio guard (audio, Bluetooth and decoders unchanged since the last release)
+        run: make -C fw audioguard
       - name: Image
         run: |
           rm -rf fw/build
