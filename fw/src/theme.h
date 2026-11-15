@@ -16,8 +16,9 @@ struct theme {
 };
 #define THEME_JEWELS 1      /* gold piping, red / blue / gold stones beside the trapezoid */
 #define THEME_BULBS  2      /* marquee bulbs on the shell, stitched leather */
+#define THEME_GRID   4      /* 1.2j: the window a starry sky over a laser grid, chrome stripes */
 
-#define THEME_COUNT 25
+#define THEME_COUNT 26
 extern const struct theme themes[THEME_COUNT];
 extern const struct theme *th;
 extern int theme_index;

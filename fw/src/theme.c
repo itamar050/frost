@@ -205,6 +205,14 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 220, 120), RGB(255, 190, 120),
         RGB(255, 150, 60), RGB(255, 90, 50), RGB(255, 40, 40),
         RGB(90, 14, 14), THEME_BULBS, RGB(40, 34, 32),
+    }, {    /* 1.2j: an 80s chrome logo: night navy, a magenta laser grid under the stars */
+        "Chrome '84",
+        RGB(8, 6, 24), RGB(235, 240, 255), RGB(140, 140, 190), RGB(255, 120, 220), RGB(255, 80, 60),
+        RGB(46, 34, 104), RGB(255, 60, 200),
+        RGB(255, 150, 230), RGB(120, 200, 255), RGB(120, 200, 255), RGB(30, 24, 60),
+        RGB(255, 230, 120), RGB(255, 200, 120),
+        RGB(60, 170, 255), RGB(255, 60, 200), RGB(255, 235, 255),
+        RGB(96, 30, 110), THEME_GRID, RGB(32, 34, 78),
     },
 };
 

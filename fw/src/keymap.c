@@ -2,7 +2,6 @@
 #include "keymap.h"
 #include "board.h"
 #include "fat.h"
-#include "lcd.h"
 #include "log.h"
 
 uint8_t keymap[KM_SCREENS][S_COUNT];
@@ -225,7 +224,5 @@ int key_list_dir(int key)
         return 0;
     int a = keymap[KM_BROWSER][S_VOLUP];
     int up_is_down = a == A_DOWN || a == A_PAGE_DOWN;
-    int d = (key == KEY_VOLUP) == up_is_down ? 1 : -1;
-    return lcd_rot == LCD_PORTRAIT ? -d : d;    /* 1.2j: turned with the screen, the key on top
-                                                   moves up (the volume keys keep their labels) */
+    return (key == KEY_VOLUP) == up_is_down ? 1 : -1;
 }

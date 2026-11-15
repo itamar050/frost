@@ -70,8 +70,11 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   progress, BT, EQ and ReplayGain), the level meters, the transport keys (the one of the state
   is down: play, pause or stop) and the next track. The status strip keeps the state, the play
   mode, the sleep timer and the battery. Every theme works upright (Elvis: gold piping and a row
-  of stones; Elvis '68: stitching and a row of bulbs). The key on top moves up through lists in
-  either portrait; the volume keys keep their printed labels. Not drawn upright yet (shown in
+  of stones; Elvis '68: stitching and a row of bulbs). The format is split: on the notch the codec
+  and the rate ("MP3 44.1", "DSD64→88.2"), a lossy file's bitrate on the display's last line.
+  In portrait (not flipped) the volume rocker turns with the screen: VOL- turns the volume up
+  and VOL+ down, and the lists follow (the custom button map too); in portrait flipped and in
+  landscape the keys do what they say. Not drawn upright yet (shown in
   landscape while open): the equalizer, Bluetooth, buttons, date and time, audiobooks, About,
   the USB disk, the installer and the charging screen.
 - **Only Power switches the screen on.** With the screen off, the other keys keep working
@@ -94,7 +97,7 @@ player doesn't use, such as video files and lossy 5.1, are not included either.
   - DSD shows its own rate and what it is converted to ("DSD64 2.8 MHz → 88.2 kHz").
 
 ### Fun UI
-- **25 colour themes**: Classic, Snow (light), Neon, Cassette, Matrix, Sakura, Elvis (the white Aloha '73 eagle suit: pearl shell, gold piping, red, blue and gold stones), Sega (90s blue, white and black), Terminator (red and black, a touch of chrome), Virtual Boy (red on black only), Turtles (sewer green with the four bandana colours), Dark Mode (terminal greys), Miku (teal and pink), EVA Shinji (Unit-01 purple and green), EVA Asuka (Unit-02 red and orange), EVA Rei (Unit-00 blue and white, red eyes), Groot (bark and leaves), Rocket (orange jumpsuit, gunmetal), Star-Lord (red leather, orange Walkman), Gamora (green, magenta tips), Drax (blue-grey, red marks), Green Hill (sky, grass, checkered earth, gold rings), Optimus Prime (red body, blue and chrome), Soundwave (G1 navy, silver, gold deck, red visor) and Elvis '68 (the Comeback Special: black leather, stitching, red marquee bulbs). Change them
+- **26 colour themes**: Classic, Snow (light), Neon, Cassette, Matrix, Sakura, Elvis (the white Aloha '73 eagle suit: pearl shell, gold piping, red, blue and gold stones), Sega (90s blue, white and black), Terminator (red and black, a touch of chrome), Virtual Boy (red on black only), Turtles (sewer green with the four bandana colours), Dark Mode (terminal greys), Miku (teal and pink), EVA Shinji (Unit-01 purple and green), EVA Asuka (Unit-02 red and orange), EVA Rei (Unit-00 blue and white, red eyes), Groot (bark and leaves), Rocket (orange jumpsuit, gunmetal), Star-Lord (red leather, orange Walkman), Gamora (green, magenta tips), Drax (blue-grey, red marks), Green Hill (sky, grass, checkered earth, gold rings), Optimus Prime (red body, blue and chrome), Soundwave (G1 navy, silver, gold deck, red visor), Elvis '68 (the Comeback Special: black leather, stitching, red marquee bulbs) and Chrome '84 (an 80s chrome logo: night navy, chrome stripes, the cassette's window a starry sky over a magenta laser grid). Change them
   in Main menu → Theme; the change shows at once. The choice is kept when you power off.
 - **The play screen is a cassette.** The whole screen is drawn as a tape, with screws in the
   corners and the colours of the theme you picked.

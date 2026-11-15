@@ -368,8 +368,31 @@ static int cover(int r16, int d16)
 }
 
 /* The glass of the window: its colour, a little lighter in a diagonal reflection */
+/* THEME_GRID: the window a night sky with stars over a glowing horizon, a magenta grid below
+ * running to the vanishing point (the reels turn over it) */
+static uint16_t grid_at(int x, int y)
+{
+    int hz = WN_Y0 + (WN_Y1 - WN_Y0) * 5 / 8, vx = (LB_X0 + LB_X1) / 2;
+    if (y < hz) {
+        uint32_t h = (uint32_t)(x * 7919 + y * 104729) ^ (uint32_t)(x * y * 31);
+        if (h % 89 == 0)
+            return h & 0x100 ? RGB(255, 255, 255) : RGB(150, 160, 220);    /* a star */
+        return mix(RGB(6, 6, 28), RGB(64, 22, 96), (y - WN_Y0) * 256 / (hz - WN_Y0 + 1));
+    }
+    int dy = y - hz;
+    if (dy == 0)
+        return RGB(255, 150, 235);              /* the horizon */
+    int k = (int)isqrt((uint32_t)(2 * dy));
+    int d = x > vx ? x - vx : vx - x, sp = (dy + 2) * 3 / 2;
+    if (k * (k + 1) / 2 == dy || d % sp == 0)
+        return mix(RGB(200, 40, 180), RGB(255, 120, 230), 256 - dy * 16);  /* a line */
+    return RGB(22, 6, 44);
+}
+
 static uint16_t glass(int x, int y)
 {
+    if (th->deco & THEME_GRID)
+        return grid_at(x, y);
     int band = (x + (y >> 1)) % 56;
     return band < 7 ? mix(BAR_BG, FG, 22) : band < 9 ? mix(BAR_BG, FG, 10) : BAR_BG;
 }
@@ -522,6 +545,18 @@ static void screw(int x, int y)
     lcd_fill(x, y - 2, 1, 5, mix(DIM, BG, 120));
 }
 
+/* THEME_GRID: a chrome band of 7 rows, the 80s logo's: sky blue up to white, a hard line, then
+ * copper up to pale gold */
+static void chrome_band(int x, int y, int w)
+{
+    static const uint16_t c[7] = {
+        RGB(50, 80, 180), RGB(120, 170, 250), RGB(220, 235, 255), RGB(255, 255, 255),
+        RGB(110, 46, 28), RGB(220, 120, 60), RGB(255, 222, 160),
+    };
+    for (int i = 0; i < 7; i++)
+        lcd_fill(x, y + i, w, 1, c[i]);
+}
+
 /* The window: a frame with a soft inner edge, the glass with its reflection, the guides in its
  * lower corners and the tape run between them (under both reels) */
 static void cass_window(void)
@@ -601,9 +636,13 @@ static void cassette(void)
     lcd_fill(LB_X1 - 2, LB_Y0 + 1, 1, 1, mix(SHELL, BG, 160));
     lcd_fill(LB_X0 + 1, LB_Y1 - 2, 1, 1, mix(SHELL, BG, 160));
     lcd_fill(LB_X1 - 2, LB_Y1 - 2, 1, 1, mix(SHELL, BG, 160));
-    lcd_fill(LB_X0 + 4, 23, LB_X1 - LB_X0 - 8, 2, ACCENT);
-    lcd_fill(LB_X0 + 4, 25, LB_X1 - LB_X0 - 8, 1, mix(ACCENT, BG, 128));
-    lcd_fill(LB_X0 + 4, 27, LB_X1 - LB_X0 - 8, 1, TITLE_FG);
+    if (th->deco & THEME_GRID)
+        chrome_band(LB_X0 + 4, 22, LB_X1 - LB_X0 - 8);
+    else {
+        lcd_fill(LB_X0 + 4, 23, LB_X1 - LB_X0 - 8, 2, ACCENT);
+        lcd_fill(LB_X0 + 4, 25, LB_X1 - LB_X0 - 8, 1, mix(ACCENT, BG, 128));
+        lcd_fill(LB_X0 + 4, 27, LB_X1 - LB_X0 - 8, 1, TITLE_FG);
+    }
     cass_window();
     /* the bottom of the shell: a trapezoid, its slanted edges smoothed, two holes */
     for (int y = TZ_Y; y < LCD_H; y++) {
@@ -768,8 +807,10 @@ static void box(int x, int y, int w, int h, uint16_t c, uint16_t edge, uint16_t 
     lcd_fill(x + w - 1, y + h - 1, 1, 1, under);
 }
 
-/* "FLAC 24/96", "MP3 320k", "DSD64": the format, short, for the cassette's notch */
-static void format_short(char *b)
+/* The format, split for the deck: on the cassette's notch "FLAC 24/96", "MP3 44.1",
+ * "DSD64→88.2" (what it is converted to); a lossy file's mean bitrate in 'kb' ("320 kbps", else
+ * "") for the display */
+static void format_short(char *b, char *kb)
 {
     const struct entry *e = q_ent(q_cur);
     uint32_t c = e ? e->flags & F_CODEC : 0, len = player_heard.length_ms;
@@ -777,21 +818,25 @@ static void format_short(char *b)
     char *p = put_str(b, c == HP_CODEC_DSD ? "DSD" : codec_name(c));
     int lossy = c == HP_CODEC_MP3 || c == HP_CODEC_AAC || c == HP_CODEC_VORBIS ||
                 c == HP_CODEC_OPUS || c == HP_CODEC_MPC || c == HP_CODEC_WMA;
+    *kb = 0;
     if (c == HP_CODEC_DSD) {
         uint32_t per = kbps / (player.channels ? player.channels : 2);
         p = put_dec(p, per > 8000 ? 256 : per > 4000 ? 128 : 64);
-    } else if (lossy && kbps) {
-        p = put_str(p, " ");
-        p = put_dec(p, kbps);
-        p = put_str(p, "k");
+        p = put_str(p, "\xe2\x86\x92");
+        p = put_khz(p, player_heard.rate);
     } else {
         p = put_str(p, " ");
-        p = put_dec(p, player_heard.bps);
-        p = put_str(p, "/");
+        if (!lossy || !kbps) {
+            p = put_dec(p, player_heard.bps);
+            p = put_str(p, "/");
+        } else
+            *put_str(put_dec(kb, kbps), " kbps") = 0;
         p = put_khz(p, player_heard.rate);
     }
     *p = 0;
 }
+
+static char dk_kbps[16];                        /* the bitrate line of the display */
 
 static void deck(void)
 {
@@ -822,9 +867,13 @@ static void deck(void)
     lcd_fill(9, 24, 152, 102, mix(BG, 0, 120));
     box(13, 30, 144, 92, DK_TAPE, mix(SHELL, FG, 50), mix(BG, 0, 120));
     box(LB_X0, LB_Y0, LB_X1 - LB_X0, LB_Y1 - LB_Y0, BG, BG, DK_TAPE);  /* its label */
-    lcd_fill(LB_X0 + 2, 37, LB_X1 - LB_X0 - 4, 2, ACCENT);
-    lcd_fill(LB_X0 + 2, 39, LB_X1 - LB_X0 - 4, 1, mix(ACCENT, BG, 128));
-    lcd_fill(LB_X0 + 2, 40, LB_X1 - LB_X0 - 4, 1, TITLE_FG);
+    if (th->deco & THEME_GRID)
+        chrome_band(LB_X0 + 2, 35, LB_X1 - LB_X0 - 4);
+    else {
+        lcd_fill(LB_X0 + 2, 37, LB_X1 - LB_X0 - 4, 2, ACCENT);
+        lcd_fill(LB_X0 + 2, 39, LB_X1 - LB_X0 - 4, 1, mix(ACCENT, BG, 128));
+        lcd_fill(LB_X0 + 2, 40, LB_X1 - LB_X0 - 4, 1, TITLE_FG);
+    }
     cass_window();
     for (int y = 100; y < 122; y++) {           /* its notch, the slanted edges smoothed */
         int e16 = 48 * 16 - (y - 100) * 6, xl = e16 >> 4, f = e16 & 15, xr = 170 - xl;
@@ -911,7 +960,7 @@ static void draw_deck(int full)
         w = lcd_text_width(b);
         lcd_text_clip(85 - w / 2 > ly->gap0 ? 85 - w / 2 : ly->gap0, 75, b, ly->gap1, DIM, BG);
         /* the format, on the notch */
-        format_short(b);
+        format_short(b, dk_kbps);
         w = lcd_text_width(b);
         lcd_text_clip(85 - w / 2 > 46 ? 85 - w / 2 : 46, ly->fmt_y, b, 124, DIM, DK_NOTCH);
         /* the next track */
@@ -944,17 +993,21 @@ static void draw_deck(int full)
             lcd_text_clip(156 - jw + 3, 173, jk, 153, BG, ACCENT);
         }
         lcd_fill(12, 214, 146, 16, BG);
-        int x = 14;
-        if (bt_linked())
-            x = lcd_text(x, 214, "BT  ", ACCENT, BG);
-        if (eq_active())
-            lcd_text(x, 214, "EQ", ACCENT, BG);
+        int x = 14, xr = 156;
         if (rg_mode != RG_MODE_OFF && rg_tag != RG_NONE) {
             p = put_rg(b);
             *p = 0;
             int track = rg_src == RG_TRACK;
-            text_right(80, 156, 214, b, track ? RG_TRACK_BG : DIM, BG);
+            xr -= lcd_text_width(b);
+            lcd_text(xr, 214, b, track ? RG_TRACK_BG : DIM, BG);
+            xr -= 6;
         }
+        if (bt_linked())
+            x = lcd_text(x, 214, "BT ", ACCENT, BG);
+        if (eq_active())
+            x = lcd_text(x, 214, "EQ ", ACCENT, BG);
+        if (dk_kbps[0])                         /* a lossy file's bitrate, when it fits */
+            lcd_text_clip(x, 214, dk_kbps, xr, DIM, BG);
     }
     /* the counter row: elapsed, volume, total; or, seeking, the target and how far */
     lcd_fill(12, ly->ty[3], 146, 16, BG);
