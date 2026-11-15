@@ -43,7 +43,8 @@ static void qd_set_count(int f, uint32_t n)
 /* The queue's listing: one folder at a time (FROST: as many entries as the browser's, so that a
  * folder is held whole, or windowed, in both; names cut shorter) */
 #define QL_MAX   LIST_MAX
-#define QL_NAME  36                             /* (FROST 1.0b: 40; 1.2d: 36, room for the code) */
+#define QL_NAME  32                             /* (FROST 1.0b: 40; 1.2d: 36; 1.2h: 32, room for
+                                                 * the code; the title reads the whole name) */
 static struct {
     struct entry e[QL_MAX];
     uint16_t order[QL_MAX];
@@ -150,6 +151,61 @@ const char *q_name(int i)
 {
     int s = slot_of(i);
     return s < 0 ? "" : slot[s].name;
+}
+
+/* FROST 1.2h: the whole name of track i (up to FAT_NAME_MAX - 1 bytes), read again from its
+ * folder, for the play screen's title when the track has no title tag: the queue keeps only
+ * QL_NAME bytes of each name. One name is kept, found again by its first cluster; its short name
+ * when the folder cannot be read now. */
+static struct {
+    uint32_t cluster, size;
+    uint8_t vol;
+    char name[FAT_NAME_MAX];
+} full;
+
+struct full_find {
+    uint32_t cluster, size;                     /* (copied: the music kept going may reuse the
+                                                   track's slot meanwhile) */
+    int found, seen;
+};
+
+static int full_match(const struct fat_dirent *d, void *ctx)
+{
+    struct full_find *c = ctx;
+    if (!(++c->seen & 31))
+        ui_background();                        /* a big folder: the music kept going, as the
+                                                   browser's reading does */
+    if ((d->attr & FAT_ATTR_DIR) || d->cluster != c->cluster || d->size != c->size)
+        return 0;
+    copy_name(full.name, d->name, sizeof full.name);
+    c->found = 1;
+    return 1;
+}
+
+const char *q_full_name(int i)
+{
+    const struct entry *e = q_ent(i);
+    if (!e)
+        return "";
+    uint8_t v = e->flags & F_SD ? FAT_VOL_SD : FAT_VOL_INT;
+    if (full.cluster == e->cluster && full.size == e->size && full.vol == v && full.name[0])
+        return full.name;
+    int f = 0;
+    uint32_t k = (uint32_t)i;
+    while (f < qd_n && k >= qd_count(f))
+        k -= qd_count(f++);
+    if (f >= qd_n || ql_busy)
+        return q_name(i);
+    struct fat_dir d;
+    qd_fat_dir(f, &d);
+    struct full_find c = { e->cluster, e->size, 0, 0 };
+    full.cluster = 0;
+    if (fat_list(&d, full_match, &c) < 0 || !c.found)
+        return q_name(i);
+    full.cluster = c.cluster;
+    full.size = c.size;
+    full.vol = v;
+    return full.name;
 }
 
 void q_set_codec(int i, uint32_t codec)         /* M4A: AAC or ALAC, from its content */

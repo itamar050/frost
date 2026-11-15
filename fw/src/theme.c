@@ -11,7 +11,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 210, 90), RGB(140, 200, 255), RGB(90, 160, 255), RGB(40, 40, 50),
         RGB(255, 150, 60), RGB(240, 200, 0),
         RGB(60, 200, 90), RGB(240, 200, 0), RGB(255, 70, 50),
-        RGB(92, 58, 34), 0,
+        RGB(92, 58, 34), 0, 0,
     }, {    /* light: white snow, deep blue ink */
         "Snow",
         RGB(236, 241, 247), RGB(18, 24, 36), RGB(118, 128, 144), RGB(0, 92, 176), RGB(206, 40, 30),
@@ -19,7 +19,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(0, 92, 176), RGB(0, 120, 150), RGB(0, 120, 230), RGB(200, 208, 220),
         RGB(230, 110, 0), RGB(250, 205, 40),
         RGB(0, 170, 110), RGB(230, 160, 0), RGB(220, 40, 40),
-        RGB(92, 58, 34), 0,
+        RGB(92, 58, 34), 0, 0,
     }, {    /* synthwave night */
         "Neon",
         RGB(14, 4, 30), RGB(244, 232, 255), RGB(140, 106, 180), RGB(255, 60, 200), RGB(255, 70, 90),
@@ -27,7 +27,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 70, 210), RGB(0, 225, 255), RGB(255, 60, 200), RGB(50, 20, 74),
         RGB(0, 235, 255), RGB(255, 230, 0),
         RGB(0, 235, 255), RGB(255, 60, 200), RGB(255, 240, 80),
-        RGB(120, 40, 140), 0,
+        RGB(120, 40, 140), 0, 0,
     }, {    /* warm tape deck */
         "Cassette",
         RGB(30, 22, 14), RGB(250, 232, 204), RGB(156, 126, 94), RGB(255, 170, 40), RGB(255, 90, 60),
@@ -35,7 +35,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 176, 60), RGB(240, 204, 130), RGB(255, 140, 30), RGB(72, 52, 32),
         RGB(255, 220, 120), RGB(250, 200, 60),
         RGB(160, 200, 60), RGB(255, 170, 40), RGB(255, 80, 40),
-        RGB(18, 10, 4), 0,
+        RGB(18, 10, 4), 0, 0,
     }, {    /* green phosphor */
         "Matrix",
         RGB(0, 0, 0), RGB(170, 255, 170), RGB(40, 140, 60), RGB(80, 255, 120), RGB(255, 80, 60),
@@ -43,7 +43,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(80, 255, 120), RGB(130, 230, 150), RGB(0, 220, 80), RGB(0, 40, 12),
         RGB(200, 255, 120), RGB(160, 255, 0),
         RGB(0, 200, 70), RGB(160, 255, 0), RGB(255, 255, 255),
-        RGB(0, 96, 32), 0,
+        RGB(0, 96, 32), 0, 0,
     }, {    /* cherry blossom */
         "Sakura",
         RGB(40, 18, 30), RGB(255, 236, 242), RGB(176, 128, 150), RGB(255, 150, 190), RGB(255, 90, 90),
@@ -51,15 +51,16 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 160, 200), RGB(255, 206, 222), RGB(255, 120, 170), RGB(76, 36, 56),
         RGB(255, 230, 140), RGB(250, 200, 80),
         RGB(140, 220, 160), RGB(255, 170, 205), RGB(255, 90, 120),
-        RGB(130, 60, 86), 0,
-    }, {    /* the King: black, gold and rhinestones */
+        RGB(130, 60, 86), 0, 0,
+    }, {    /* the King, Aloha from Hawaii (1973): the white eagle suit, its red, blue and gold
+             * stones, gold piping; a night-blue stage behind (1.2h, was black and gold) */
         "Elvis",
-        RGB(8, 6, 4), RGB(245, 236, 210), RGB(150, 128, 86), RGB(255, 200, 60), RGB(255, 70, 60),
-        RGB(92, 66, 12), RGB(225, 242, 255),
-        RGB(245, 196, 56), RGB(255, 226, 140), RGB(232, 182, 40), RGB(42, 34, 14),
-        RGB(205, 232, 255), RGB(240, 190, 50),
-        RGB(200, 158, 40), RGB(255, 212, 92), RGB(236, 246, 255),
-        RGB(120, 86, 24), 1,
+        RGB(10, 12, 26), RGB(246, 244, 238), RGB(140, 140, 160), RGB(236, 186, 60), RGB(255, 80, 60),
+        RGB(40, 70, 170), RGB(236, 186, 60),
+        RGB(236, 186, 60), RGB(140, 180, 255), RGB(236, 186, 60), RGB(40, 40, 60),
+        RGB(255, 96, 96), RGB(236, 186, 60),
+        RGB(60, 110, 230), RGB(236, 186, 60), RGB(210, 30, 44),
+        RGB(150, 110, 30), THEME_JEWELS, RGB(226, 222, 212),
     }, {    /* 16-bit blue, white and black */
         "Sega",
         RGB(0, 0, 0), RGB(255, 255, 255), RGB(130, 150, 190), RGB(60, 130, 255), RGB(255, 80, 60),
@@ -67,7 +68,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(70, 140, 255), RGB(170, 200, 255), RGB(40, 112, 255), RGB(18, 26, 48),
         RGB(255, 255, 255), RGB(40, 112, 255),
         RGB(40, 112, 255), RGB(150, 190, 255), RGB(255, 255, 255),
-        RGB(70, 80, 112), 0,
+        RGB(70, 80, 112), 0, 0,
     }, {    /* red eye on black, a little chrome */
         "Terminator",
         RGB(0, 0, 0), RGB(228, 220, 220), RGB(140, 140, 150), RGB(255, 30, 20), RGB(255, 200, 0),
@@ -75,7 +76,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 50, 40), RGB(220, 120, 110), RGB(220, 20, 15), RGB(40, 10, 10),
         RGB(255, 140, 120), RGB(200, 20, 10),
         RGB(140, 0, 0), RGB(222, 22, 12), RGB(255, 130, 110),
-        RGB(96, 24, 24), 0,
+        RGB(96, 24, 24), 0, 0,
     }, {    /* red on black only, four shades */
         "Virtual Boy",
         RGB(0, 0, 0), RGB(255, 34, 34), RGB(116, 0, 0), RGB(255, 64, 64), RGB(255, 150, 150),
@@ -83,7 +84,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 54, 54), RGB(196, 0, 0), RGB(232, 0, 0), RGB(44, 0, 0),
         RGB(255, 120, 120), RGB(160, 0, 0),
         RGB(120, 0, 0), RGB(200, 0, 0), RGB(255, 64, 64),
-        RGB(110, 0, 0), 0,
+        RGB(110, 0, 0), 0, 0,
     }, {    /* sewer green, and the four bandanas */
         "Turtles",
         RGB(10, 30, 12), RGB(232, 246, 222), RGB(122, 164, 110), RGB(255, 140, 20), RGB(232, 32, 40),
@@ -91,7 +92,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 142, 24), RGB(124, 222, 92), RGB(40, 120, 255), RGB(20, 52, 24),
         RGB(236, 40, 48), RGB(255, 142, 24),
         RGB(90, 200, 60), RGB(255, 142, 24), RGB(236, 40, 48),
-        RGB(44, 32, 20), 0,
+        RGB(44, 32, 20), 0, 0,
     }, {    /* a terminal's dark mode: greys */
         "Dark Mode",
         RGB(18, 18, 18), RGB(212, 212, 212), RGB(110, 110, 110), RGB(200, 200, 200), RGB(240, 90, 80),
@@ -99,7 +100,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(236, 236, 236), RGB(172, 172, 172), RGB(164, 164, 164), RGB(40, 40, 40),
         RGB(222, 222, 222), RGB(124, 124, 124),
         RGB(120, 120, 120), RGB(180, 180, 180), RGB(240, 240, 240),
-        RGB(64, 64, 64), 0,
+        RGB(64, 64, 64), 0, 0,
     }, {    /* the virtual singer: teal twin-tails, pink ties */
         "Miku",
         RGB(8, 22, 26), RGB(226, 246, 244), RGB(110, 150, 150), RGB(57, 197, 187), RGB(225, 40, 133),
@@ -107,7 +108,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(90, 220, 210), RGB(140, 232, 222), RGB(57, 197, 187), RGB(20, 48, 52),
         RGB(233, 60, 140), RGB(230, 90, 160),
         RGB(57, 197, 187), RGB(120, 230, 220), RGB(233, 60, 140),
-        RGB(40, 70, 74), 0,
+        RGB(40, 70, 74), 0, 0,
     }, {    /* Unit-01: purple, neon green */
         "EVA Shinji",
         RGB(16, 8, 26), RGB(236, 228, 246), RGB(130, 110, 150), RGB(150, 255, 60), RGB(255, 120, 40),
@@ -115,7 +116,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(150, 255, 60), RGB(190, 160, 240), RGB(140, 255, 40), RGB(40, 24, 60),
         RGB(255, 140, 40), RGB(255, 140, 40),
         RGB(120, 230, 40), RGB(190, 255, 60), RGB(255, 120, 40),
-        RGB(70, 40, 100), 0,
+        RGB(70, 40, 100), 0, 0,
     }, {    /* Unit-02: red and orange */
         "EVA Asuka",
         RGB(20, 4, 4), RGB(250, 236, 230), RGB(160, 110, 100), RGB(255, 150, 40), RGB(255, 230, 0),
@@ -123,7 +124,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 90, 60), RGB(255, 180, 140), RGB(230, 30, 40), RGB(56, 14, 14),
         RGB(255, 200, 60), RGB(255, 170, 40),
         RGB(255, 140, 30), RGB(255, 90, 40), RGB(255, 240, 240),
-        RGB(90, 20, 20), 0,
+        RGB(90, 20, 20), 0, 0,
     }, {    /* Unit-00: blue and white, red eyes */
         "EVA Rei",
         RGB(10, 14, 26), RGB(236, 240, 250), RGB(120, 130, 160), RGB(150, 200, 255), RGB(230, 30, 40),
@@ -131,7 +132,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(170, 210, 255), RGB(200, 220, 255), RGB(120, 170, 240), RGB(28, 36, 60),
         RGB(230, 40, 50), RGB(230, 60, 60),
         RGB(120, 170, 240), RGB(230, 240, 255), RGB(220, 30, 40),
-        RGB(60, 74, 110), 0,
+        RGB(60, 74, 110), 0, 0,
     }, {    /* bark and leaves */
         "Groot",
         RGB(22, 14, 8), RGB(238, 226, 200), RGB(140, 120, 90), RGB(120, 200, 70), RGB(230, 80, 50),
@@ -139,7 +140,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(150, 220, 90), RGB(200, 170, 120), RGB(120, 200, 70), RGB(50, 34, 18),
         RGB(240, 200, 80), RGB(200, 150, 80),
         RGB(90, 170, 50), RGB(170, 220, 70), RGB(240, 140, 60),
-        RGB(70, 46, 24), 0,
+        RGB(70, 46, 24), 0, 0,
     }, {    /* orange jumpsuit, gunmetal */
         "Rocket",
         RGB(18, 18, 20), RGB(236, 232, 226), RGB(130, 124, 118), RGB(255, 130, 30), RGB(255, 60, 40),
@@ -147,7 +148,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 150, 50), RGB(200, 180, 150), RGB(255, 130, 30), RGB(46, 44, 46),
         RGB(120, 200, 255), RGB(200, 150, 90),
         RGB(150, 140, 130), RGB(255, 150, 40), RGB(255, 70, 40),
-        RGB(90, 70, 50), 0,
+        RGB(90, 70, 50), 0, 0,
     }, {    /* red leather and an orange Walkman */
         "Star-Lord",
         RGB(24, 10, 8), RGB(244, 232, 220), RGB(150, 120, 110), RGB(220, 50, 40), RGB(255, 200, 40),
@@ -155,7 +156,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(230, 70, 50), RGB(240, 180, 150), RGB(220, 50, 40), RGB(54, 24, 20),
         RGB(255, 200, 80), RGB(255, 170, 80),
         RGB(200, 120, 80), RGB(255, 170, 60), RGB(255, 60, 40),
-        RGB(80, 40, 26), 0,
+        RGB(80, 40, 26), 0, 0,
     }, {    /* green, black, magenta tips */
         "Gamora",
         RGB(8, 16, 10), RGB(226, 244, 230), RGB(110, 150, 120), RGB(90, 200, 110), RGB(230, 60, 120),
@@ -163,7 +164,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(110, 220, 130), RGB(170, 230, 180), RGB(90, 200, 110), RGB(20, 40, 26),
         RGB(230, 80, 150), RGB(200, 90, 160),
         RGB(80, 190, 100), RGB(150, 230, 120), RGB(220, 60, 130),
-        RGB(40, 70, 48), 0,
+        RGB(40, 70, 48), 0, 0,
     }, {    /* blue-grey skin, red marks */
         "Drax",
         RGB(12, 16, 22), RGB(226, 232, 240), RGB(120, 130, 145), RGB(200, 40, 40), RGB(255, 180, 60),
@@ -171,7 +172,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(220, 60, 60), RGB(160, 180, 210), RGB(200, 40, 40), RGB(34, 40, 52),
         RGB(255, 190, 80), RGB(220, 90, 80),
         RGB(110, 140, 180), RGB(170, 190, 220), RGB(220, 40, 40),
-        RGB(70, 80, 96), 0,
+        RGB(70, 80, 96), 0, 0,
     }, {    /* blue sky, grass, checkered earth, gold rings */
         "Green Hill",
         RGB(24, 72, 168), RGB(255, 255, 255), RGB(160, 190, 230), RGB(255, 220, 40), RGB(240, 60, 40),
@@ -179,7 +180,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(255, 220, 40), RGB(130, 230, 110), RGB(60, 190, 70), RGB(120, 70, 30),
         RGB(255, 255, 255), RGB(190, 120, 60),
         RGB(70, 200, 70), RGB(255, 220, 40), RGB(240, 60, 40),
-        RGB(130, 80, 36), 0,
+        RGB(130, 80, 36), 0, 0,
     }, {    /* red, blue and chrome */
         "Optimus Prime",
         RGB(8, 12, 28), RGB(232, 236, 244), RGB(130, 140, 160), RGB(220, 30, 36), RGB(255, 200, 40),
@@ -187,7 +188,7 @@ const struct theme themes[THEME_COUNT] = {
         RGB(230, 50, 50), RGB(150, 180, 240), RGB(40, 100, 220), RGB(30, 36, 56),
         RGB(255, 200, 40), RGB(190, 200, 214),
         RGB(40, 110, 230), RGB(190, 200, 214), RGB(230, 40, 40),
-        RGB(80, 90, 110), 0,
+        RGB(80, 90, 110), 0, 0,
     }, {    /* G1: navy, silver, gold deck, red visor */
         "Soundwave",
         RGB(10, 12, 30), RGB(220, 226, 240), RGB(120, 126, 150), RGB(250, 200, 40), RGB(255, 60, 60),
@@ -195,7 +196,15 @@ const struct theme themes[THEME_COUNT] = {
         RGB(250, 200, 40), RGB(170, 180, 220), RGB(60, 90, 200), RGB(28, 32, 60),
         RGB(255, 80, 80), RGB(150, 90, 190),
         RGB(60, 100, 220), RGB(250, 200, 40), RGB(230, 50, 50),
-        RGB(150, 156, 172), 0,
+        RGB(150, 156, 172), 0, 0,
+    }, {    /* the King, the '68 Comeback Special: black leather, the red bulbs of the stage */
+        "Elvis '68",
+        RGB(6, 4, 4), RGB(250, 244, 236), RGB(150, 130, 120), RGB(255, 60, 50), RGB(255, 200, 60),
+        RGB(130, 20, 20), RGB(255, 70, 50),
+        RGB(255, 70, 56), RGB(255, 190, 120), RGB(255, 60, 50), RGB(50, 30, 28),
+        RGB(255, 220, 120), RGB(255, 190, 120),
+        RGB(255, 150, 60), RGB(255, 90, 50), RGB(255, 40, 40),
+        RGB(90, 14, 14), THEME_BULBS, RGB(40, 34, 32),
     },
 };
 

@@ -14,7 +14,7 @@ static const char *codec_name(uint32_t c)
  * artist, album, time); under the window the tape's progress and the format; in the shell's
  * bottom (where the heads go) the level meters and the next track.
  *
- *   0..170  the shell (SEL_BG), screws in the corners
+ *   0..170  the shell (SHELL), screws in the corners
  *   4..126  the label (BG), x 8..312
  *     6     status line
  *     24    two stripes
@@ -277,6 +277,7 @@ static void status_line(void)
 #define HUB_R   11                              /* the white hub; the pack around it */
 #define HOLE_R  7
 #define REEL_T  (2 * RMAX + 4)                  /* a reel's tile */
+#define SHELL   (th->shell ? th->shell : SEL_BG)  /* 1.2h: a body of its own, else the selection's */
 static int cs_angle, cs_r16[2] = { -1, -1 }, cs_hub[2] = { -1, -1 };
 static uint32_t cs_t;
 static uint16_t tile[REEL_T * REEL_T] __attribute__((section(".dirbuf")));
@@ -353,7 +354,7 @@ static uint16_t reel_px(int dx16, int dy16, uint16_t g, int r16, int ang)
         uint16_t w = mix(FG, 0xffff, 120);
         c = mix(c, w, cover(HUB_R * 16, d));                /* the white wheel */
         if (d < HOLE_R * 16 + 16) {
-            c = mix(c, mix(BG, SEL_BG, 60), cover(HOLE_R * 16, d));   /* its hole */
+            c = mix(c, mix(BG, SHELL, 60), cover(HOLE_R * 16, d));    /* its hole */
             for (int k = 0; k < 6; k++) {       /* six teeth into the hole, turning */
                 int a = (ang + 6 * k) % 36;
                 int u = (dx16 * CS(a) + dy16 * sn[a]) >> 12, v = (-dx16 * sn[a] + dy16 * CS(a)) >> 12;
@@ -446,7 +447,7 @@ static void aa_disc(int cx, int cy, int r16, uint16_t c, uint16_t (*under)(int, 
 static uint16_t shell_at(int x, int y)          /* the shell: lit from the top */
 {
     (void)x;
-    return mix(SEL_BG, y < LCD_H / 2 ? FG : BG, y < LCD_H / 2 ? (LCD_H / 2 - y) / 3 : (y - LCD_H / 2) / 2);
+    return mix(SHELL, y < LCD_H / 2 ? FG : BG, y < LCD_H / 2 ? (LCD_H / 2 - y) / 3 : (y - LCD_H / 2) / 2);
 }
 
 static uint16_t tz_at(int x, int y)             /* in the trapezoid */
@@ -454,6 +455,19 @@ static uint16_t tz_at(int x, int y)             /* in the trapezoid */
     (void)x;
     (void)y;
     return BG;
+}
+
+/* A marquee bulb: a red glow and a warm core, smoothed on the shell (THEME_BULBS) */
+static void bulb(int cx, int cy, int lit)
+{
+    uint16_t glow = lit ? RGB(150, 24, 12) : RGB(60, 20, 14), core = lit ? RGB(255, 214, 160) : RGB(110, 40, 28);
+    uint16_t *p = tile;
+    for (int j = -4; j <= 4; j++)
+        for (int i = -4; i <= 4; i++) {
+            int d = (int)isqrt((uint32_t)((i * i + j * j) * 256));
+            *p++ = mix(mix(shell_at(cx + i, cy + j), glow, cover(2 * 16 + 8, d)), core, cover(16 + 8, d));
+        }
+    lcd_blit(cx - 4, cy - 4, 9, 9, tile);
 }
 
 static void screw(int x, int y)
@@ -470,23 +484,43 @@ static void cassette(void)
         uint16_t c = shell_at(0, y);
         lcd_fill(0, y, LCD_W, 1, c);
     }
-    lcd_fill(0, 0, LCD_W, 1, mix(SEL_BG, FG, 90));         /* its edge catching the light */
+    lcd_fill(0, 0, LCD_W, 1, mix(SHELL, FG, 90));          /* its edge catching the light */
     lcd_fill(0, 0, 2, 2, BG);                   /* rounded corners: the screen's own black */
     lcd_fill(LCD_W - 2, 0, 2, 2, BG);
     lcd_fill(0, LCD_H - 2, 2, 2, BG);
     lcd_fill(LCD_W - 2, LCD_H - 2, 2, 2, BG);
-    if (th->deco & THEME_SPARKLE) {             /* rhinestones on the shell */
-        static const uint16_t sp[][2] = {
-            { 14, 140 }, { 30, 154 }, { 46, 136 }, { 20, 164 }, { 40, 162 },
-            { 306, 140 }, { 290, 154 }, { 274, 136 }, { 300, 164 }, { 280, 162 },
-            { 3, 40 }, { 3, 80 }, { 3, 112 }, { 316, 40 }, { 316, 80 }, { 316, 112 },
-        };
-        for (unsigned k = 0; k < sizeof sp / sizeof *sp; k++) {
-            int x = sp[k][0], y = sp[k][1], big = k % 3 == 0;
-            uint16_t glint = mix(ACCENT, 0xffff, 160), halo = mix(shell_at(x, y), ACCENT, 140);
-            lcd_fill(x - 1 - big, y, 3 + 2 * big, 1, halo);
-            lcd_fill(x, y - 1 - big, 1, 3 + 2 * big, halo);
-            lcd_fill(x, y, 1, 1, glint);
+    if (th->deco & THEME_JEWELS) {              /* the eagle suit: gold piping, and its stones in
+                                                   three rows along the trapezoid's slanted edges */
+        static const uint16_t stone[3] = { RGB(236, 186, 60), RGB(210, 30, 44), RGB(40, 80, 200) };
+        lcd_fill(3, 1, LCD_W - 6, 1, stone[0]);
+        lcd_fill(3, LCD_H - 2, LCD_W - 6, 1, stone[0]);
+        lcd_fill(1, 3, 1, LCD_H - 6, stone[0]);
+        lcd_fill(LCD_W - 2, 3, 1, LCD_H - 6, stone[0]);
+        for (int k = 0; k < 3; k++)
+            for (int y = TZ_Y + 3; y < LCD_H - 8; y += 6) {
+                int x = 56 - (y - TZ_Y) / 2 - 6 - 5 * k;
+                aa_disc(x, y, 26, stone[k], shell_at);
+                aa_disc(LCD_W - 1 - x, y, 26, stone[k], shell_at);
+                lcd_fill(x, y - 1, 1, 1, 0xffff);   /* the glint */
+                lcd_fill(LCD_W - 1 - x, y - 1, 1, 1, 0xffff);
+            }
+    }
+    if (th->deco & THEME_BULBS) {               /* the '68 stage: stitched leather, bulbs down the
+                                                   sides and along the trapezoid, one in five out */
+        uint16_t thread = mix(SHELL, FG, 70);
+        for (int x = 10; x < LCD_W - 10; x += 5) {
+            lcd_fill(x, 2, 3, 1, thread);
+            lcd_fill(x, LCD_H - 3, 3, 1, thread);
+        }
+        int n = 0;
+        for (int y = 14; y < TZ_Y - 4; y += 9, n++) {
+            bulb(4, y, n % 5 != 4);
+            bulb(LCD_W - 5, y, n % 5 != 4);
+        }
+        for (int y = TZ_Y + 4; y < LCD_H - 9; y += 8, n++) {
+            int x = 56 - (y - TZ_Y) / 2 - 7;
+            bulb(x, y, n % 5 != 4);
+            bulb(LCD_W - 1 - x, y, n % 5 != 4);
         }
     }
     screw(5, 5);
@@ -497,10 +531,10 @@ static void cassette(void)
     lcd_fill(LB_X0 + 2, LB_Y0, LB_X1 - LB_X0 - 4, LB_Y1 - LB_Y0, BG);
     lcd_fill(LB_X0, LB_Y0 + 2, 2, LB_Y1 - LB_Y0 - 4, BG);
     lcd_fill(LB_X1 - 2, LB_Y0 + 2, 2, LB_Y1 - LB_Y0 - 4, BG);
-    lcd_fill(LB_X0 + 1, LB_Y0 + 1, 1, 1, mix(SEL_BG, BG, 160));
-    lcd_fill(LB_X1 - 2, LB_Y0 + 1, 1, 1, mix(SEL_BG, BG, 160));
-    lcd_fill(LB_X0 + 1, LB_Y1 - 2, 1, 1, mix(SEL_BG, BG, 160));
-    lcd_fill(LB_X1 - 2, LB_Y1 - 2, 1, 1, mix(SEL_BG, BG, 160));
+    lcd_fill(LB_X0 + 1, LB_Y0 + 1, 1, 1, mix(SHELL, BG, 160));
+    lcd_fill(LB_X1 - 2, LB_Y0 + 1, 1, 1, mix(SHELL, BG, 160));
+    lcd_fill(LB_X0 + 1, LB_Y1 - 2, 1, 1, mix(SHELL, BG, 160));
+    lcd_fill(LB_X1 - 2, LB_Y1 - 2, 1, 1, mix(SHELL, BG, 160));
     lcd_fill(LB_X0 + 4, 23, LB_X1 - LB_X0 - 8, 2, ACCENT);
     lcd_fill(LB_X0 + 4, 25, LB_X1 - LB_X0 - 8, 1, mix(ACCENT, BG, 128));
     lcd_fill(LB_X0 + 4, 27, LB_X1 - LB_X0 - 8, 1, TITLE_FG);
@@ -529,8 +563,8 @@ static void cassette(void)
         lcd_fill(xl, y, 1, 1, mix(shell_at(xl, y), BG, 256 - f * 16));
         lcd_fill(xr, y, 1, 1, mix(shell_at(xr, y), BG, 256 - f * 16));
     }
-    aa_disc(66, 160, 4 * 16 + 8, mix(SEL_BG, BG, 90), tz_at);
-    aa_disc(LCD_W - 67, 160, 4 * 16 + 8, mix(SEL_BG, BG, 90), tz_at);
+    aa_disc(66, 160, 4 * 16 + 8, mix(SHELL, BG, 90), tz_at);
+    aa_disc(LCD_W - 67, 160, 4 * 16 + 8, mix(SHELL, BG, 90), tz_at);
     cs_r16[0] = cs_r16[1] = cs_hub[0] = cs_hub[1] = -1;
     reels(1);
     vu_reset();
@@ -657,7 +691,7 @@ void draw_playing(int full)
         return;
     }
     if (full) {
-        const char *nm = tg.title[0] ? tg.title : q_name(q_cur);
+        const char *nm = tg.title[0] ? tg.title : q_full_name(q_cur);
         marquee_set(&mq[0], TX0, TX1, 32, nm, FG);
         marquee_set(&mq[1], TX0, TX1, 48, tg.artist[0] ? tg.artist : "unknown artist", TITLE_FG);
         if (q_book) {

@@ -11,11 +11,13 @@ struct theme {
     uint16_t title_fg, dir_fg, bar_fg, bar_bg, sk_fg, rg_bg;
     uint16_t vu_lo, vu_mid, vu_hi;                      /* the level meters */
     uint16_t tape;                                      /* the cassette's tape */
-    uint16_t deco;                                      /* THEME_SPARKLE: rhinestones */
+    uint16_t deco;                                      /* THEME_JEWELS, THEME_BULBS */
+    uint16_t shell;                                     /* 1.2h: the cassette's body, 0: sel_bg */
 };
-#define THEME_SPARKLE 1
+#define THEME_JEWELS 1      /* gold piping, red / blue / gold stones beside the trapezoid */
+#define THEME_BULBS  2      /* marquee bulbs on the shell, stitched leather */
 
-#define THEME_COUNT 24
+#define THEME_COUNT 25
 extern const struct theme themes[THEME_COUNT];
 extern const struct theme *th;
 extern int theme_index;

@@ -149,6 +149,7 @@ int q_on_sd(void);                              /* the queue is on the card */
 /* Track i: its entry and name (read again from its folder when needed; 0 / "" if unreadable) */
 const struct entry *q_ent(int i);
 const char *q_name(int i);
+const char *q_full_name(int i);         /* FROST 1.2h: the whole name, for the title */
 void q_set_codec(int i, uint32_t codec);
 
 /* ---- playback.c ---- */
